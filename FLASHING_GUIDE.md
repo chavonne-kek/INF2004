@@ -8,16 +8,14 @@
 - On Windows: **WSL (Ubuntu)** to build, and **PuTTY** (or
   `python tools/read_serial.py`) to read the console.
 
-**Fast path (no building):** the zip's `firmware/` folder has two images
-built from exactly this code. You can go straight to step 3.
+No firmware images are stored in the repository (MQTT images contain the
+hotspot password). Build them in step 2:
 
-| File in `firmware/` (name when you build it yourself) | When to use it |
+| Image you build | When to use it |
 |---|---|
-| `IS25_TEST_does-not-drive.uf2` (`mtk3pico_smp1_usb_cdc_wifi_test.uf2`) | **First.** Runs every subsystem's self-test. **The car does not drive.** |
-| `IS25_NORMAL_drives.uf2` (`mtk3pico_smp1_usb_cdc_wifi.uf2`) | Normal run: calibrates (turns 60° left, 120° right, 60° left), then waits for the start button. |
-
-You need steps 1–2 once you change code, for example to set the measured
-encoder edges, tune the PID, or set the servo angles.
+| `mtk3pico_smp1_usb_cdc_wifi_test.uf2` (`make TEST=1`) | **First.** Runs every subsystem's self-test. **The car does not drive.** |
+| `mtk3pico_smp1_usb_cdc_wifi.uf2` (`make`) | Normal run without WiFi: waits 3 s, then waits for the start button. |
+| `mtk3pico_smp1_usb_cdc_wifi_lwip_mqtt.uf2` (`make NET=lwip MQTT=1`) | Demo: as the normal run, plus the MQTT dashboard (section 7). |
 
 ## 1. One-time setup (Windows)
 
@@ -115,8 +113,8 @@ or on the wrong pin.
 
 ### Check one subsystem at a time
 
-If the test image shows problems, use the check images (zip folder
-`firmware/checks/`, or `make CHECK=1` … `make CHECK=5`). Each runs ONE
+If the test image shows problems, use the check images (`make CHECK=1` …
+`make CHECK=5`; `make CHECK=6` is the barcode bench). Each runs ONE
 subsystem's self-tests, then prints its live readings twice a second
 (IR values, encoder pins and a motor test, IMU data and a wiring check,
 ultrasonic range with a servo sweep and the buttons, the comms status
@@ -127,41 +125,46 @@ In the test and check images the car never drives by itself: START
 
 ## 6. Normal run
 
-1. Flash the normal image (`IS25_NORMAL_drives.uf2`, or
-   `mtk3pico_smp1_usb_cdc_wifi.uf2` if you built it). It starts at once
-   and tries its calibration spin while the car is still lifted and
-   perhaps without battery power, so ignore that first run.
-2. Put the car **on the line** on the track, switch the **battery on**,
-   and press the board's **RUN/RESET** button. (USB alone powers the Pico
-   but not the motors: a spin without the battery ends in
-   `S2: STALL` → FAULT, as on 27 Oct.)
-3. It **beeps, stays still for about 3 s, then sweeps 60° left, 120° right
-   and 60° left** (ending where it started) to calibrate
-   the IR sensors and the magnetometer. Keep hands clear. The console then
-   prints `S4: calibration IR ok (…), IMU ok` and `S4: state IDLE`.
-4. Press **GP20 (start)**. It follows the line, executes barcodes A/B/C/D
-   at the next junction, measures humps, and avoids obstacles. **GP21
-   (reset)** recovers from FAULT or EMERGENCY_STOP.
+1. Flash the normal image (`mtk3pico_smp1_usb_cdc_wifi.uf2`, or the MQTT
+   image for the demo).
+2. Put the car **on the line** on the track (the line between the two track
+   sensors), switch the **battery on**, and press the board's **RUN/RESET**
+   button. (USB alone powers the Pico but not the motors.)
+3. **Do not touch the car for 3 s.** It waits 2 s, then keeps still for 1 s
+   while the IMU takes its zero (FR2), then goes to IDLE. It does **not**
+   move: the IR calibration sweep was removed on 20 Nov, because the track
+   sensors use fixed raw thresholds (black > 900, white < 650; NFR15).
+   The console prints `S4: calibration IR FAILED (…), IMU ok`, a line about
+   a start-up sweep, then `S4: state IDLE`. **Ignore the two IR lines:**
+   they are left over from the removed sweep, and START is not refused.
+   `IMU ok` is the part that matters.
+4. Press **GP20 (start)** (or Start on the dashboard). It follows the line
+   at 3 cm/s, executes the barcode command at the next junction (default A
+   left, B right, C straight, D U-turn; other letters can be mapped from
+   the dashboard), measures humps, and stops for and goes round the box.
+   Lift the car to end the run. **GP21 (reset)** recovers from FAULT or
+   EMERGENCY_STOP.
 5. Every 2 s the console prints the decoded state, for example:
-   `S5: up 12 s | LINE_FOLLOW (none) | link ONLINE, signal -48 dBm | line -3 mm, IR 812 3012 790 | odo 1820 mm, L 205 R 195 mm/s | pitch 0.25 deg, hump FLAT, CRUISING | barcodes 1 (rejected 0) | dropped 0, bad commands 0`.
+   `S5: up 12 s | LINE_FOLLOW (none) | link ONLINE, signal -48 dBm | line -3 mm, IR arm 812 C 3012 R 790 | odo 1820 mm, L 205 R 195 mm/s | pitch 0.25 deg, hump FLAT, CRUISING | barcodes 1 (rejected 0) | dropped 0, bad commands 0`.
    The words in brackets after the state are the active faults. `IR` is
-   the raw reading (0–4095) of the left, centre and right IR sensor.
+   the raw reading (0–4095) of the barcode arm (GP28), the left track
+   sensor (C, GP27) and the right track sensor (R, GP26).
 6. If something is the wrong way round or off, fix the matching `TODO`
    constant (see each subsystem's `README.md`), rebuild (step 2) and
    reflash (step 3).
 
 ### If the car goes to FAULT at start-up
 
-The console says why. The three messages seen on 27 Oct:
+The console says why:
 
 | Console | Meaning | Check |
 |---|---|---|
-| `S2: STALL - motors driven … no encoder pulse from either wheel` | During the start-up spin the motors were driven but no encoder counted | Battery switch on? Did the wheels turn? If yes: encoder 3V3/GND/signal wires (test image `[CAL] pin activity`) |
+| `S2: STALL - motors driven … no encoder pulse from either wheel` | After START the motors were driven but no encoder counted | Battery switch on? Did the wheels turn? If yes: encoder 3V3/GND/signal wires (test image `[CAL] pin activity`) |
 | `S3: IMU not found …` and `S3: I2C check: …` | The IMU (LSM303D) does not answer | The check line says what to fix (swapped wires, a line held low, or no answer: power and cable) |
-| `S4: calibration IR FAILED (black-white span …)` | The spin did not carry every IR sensor over the line and the floor | Put the car on the line; spans under 400 mean that sensor saw no contrast |
+| `S4: calibration IR FAILED (black-white span …)` | **Not a fault** (see step 3): printed at every start-up since the IR sweep was removed | Nothing to do |
 
-GP21 clears a STALL (back to IDLE, without a new calibration); the board's
-RUN/RESET button restarts everything, including the calibration spin.
+GP21 clears a STALL (back to IDLE); the board's RUN/RESET button restarts
+everything, including the 3 s start-up.
 
 ## 7. WiFi, MQTT and the dashboard (after instructor approval)
 
