@@ -67,30 +67,27 @@ format is in its owner's `subsystemN.h`, with the bit layout above it.
    Keep the **Maker Port empty** (it shares GP2/GP3), and leave the
    **VBAT-sense jumper unsoldered** (it would put the battery on GP28, the
    barcode sensor).
-2. **Test image.** `make TEST=1` (or `firmware/…_test.uf2`), flash, and save
+2. **Test image.** `make TEST=1`, flash, and save
    the console (`python tools/read_serial.py`). The car does not drive.
    Every `[TEST]` line should PASS; a FAIL usually means a sensor is not
    wired. At `[CAL] S2-M01`, turn each wheel 10 times by hand. **To find
    which wire is wrong, check one subsystem at a time** with the check
-   images (`make CHECK=1` … `5`, or `firmware/checks/`): its self-tests,
+   images (`make CHECK=1` … `5`): its self-tests,
    then its live readings. Steps: `docs/IS25_Subsystem_Checks.txt`.
-3. **Kai Xuan:** encoder edges (set `MOTION_EDGES_PER_REV` before the
-   first normal run: if the real count is higher than the placeholder 40,
-   the start-up sweep stops far short and the IR calibration
-   fails), motor direction, wheel size, PID,
+3. **Kai Xuan:** encoder edges (`MOTION_EDGES_PER_REV`, measured 1270
+   per revolution), motor direction, wheel size, PID,
    then 1 m and 90° accuracy (`subsystem2/README.md`).
 4. **Zi Siang:** tilt the nose up; pitch must go positive (S3-M01).
 5. **Soma:** servo angles, which side index 24 points to, car width.
 6. **Hao Ming:** raw IR values on the real track (S1-U12), the barcodes
    both ways (S1-U14).
 7. **Normal image.** Flash it, then put the car on the line, switch the
-   battery ON and press the board's RUN/RESET button: the start-up spin
-   needs motor power (on USB power alone it ends in STALL → FAULT, as in
-   the 27 Oct log). It beeps, stays still for about 3 s and sweeps 60° left, 120° right,
-   60° left to
-   calibrate. Press GP20 to start; GP21 resets from FAULT or
-   EMERGENCY_STOP. If it goes to FAULT, the console says why
-   (`FLASHING_GUIDE.md`, "If the car goes to FAULT at start-up").
+   battery ON and press the board's RUN/RESET button. Keep it still for
+   3 s: it waits 2 s and zeroes the IMU for 1 s, then goes to IDLE without
+   moving (the IR calibration sweep was removed on 20 Nov; the track
+   sensors use fixed raw thresholds, NFR15). Press GP20 to start; GP21
+   resets from FAULT or EMERGENCY_STOP. If it goes to FAULT, the console
+   says why (`FLASHING_GUIDE.md`, "If the car goes to FAULT at start-up").
 8. **Chavonne:** after instructor approval, apply the IF-07 patch, build
    `NET=lwip MQTT=1`, and run the dashboard (`MQTT_PROTOCOL.md`).
 
