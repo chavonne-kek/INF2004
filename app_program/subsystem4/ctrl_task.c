@@ -21,6 +21,7 @@
 #include "subsystem4.h"
 #include "ctrl_task.h"
 #include "scan_task.h"
+#include "b5_task.h"           /* B5_Task_RequestWatchReset (v94: was implicit) */
 #include "drv_board.h"
 #include "../subsystem1/subsystem1.h"
 #include "../subsystem1/barcode.h"
@@ -48,7 +49,22 @@
  *   Nov 2026: back to 1 for the demo (detect, measure and bypass the
  *   obstacle are rubric items 6-8).  0 only for line-only testing. */
 #define CTRL_AUTO_START        0
-#define CTRL_OBSTACLE_ENABLE   1       /* Demo: on (rubric 6-8).     */
+/* 23 Nov car: OFF for the demo.  The HC-SR04 on 3.3 V reports 1 cm with
+ * nothing in front and 1 cm with a box at 20 cm - it is not measuring, so
+ * every rule built on its number fires on the empty track (obstacle avoid
+ * 1.4 s after START, and again mid-barcode).  The subsystem is complete and
+ * stays in the tree; only the watch is refused, so the rest of the run is
+ * not spoilt by it.  Turn this back to 1 when the module is on 5 V with the
+ * divider on Echo, or replaced by an RCWL-1601. */
+/* 23 Nov, second module: nothing in front reports a steady 24 cm, an object
+ * about 20 cm away reports 1-3 cm (the echo saturates at the end of its own
+ * burst - this part cannot measure distance at 3.3 V either, but it does
+ * detect presence consistently).  So the watch uses B5_NEAR_CM as the
+ * object test and 22+ as clear; width is not measurable and the bypass is
+ * the fixed one. */
+/* v94h: stop after 15 readings of exactly 1 cm in a row (their rule,
+ * count lowered from 20 - this module spams 1s). */
+#define CTRL_OBSTACLE_ENABLE   1
 #define CTRL_WATCHDOG_ENABLE   1
 #define CTRL_WATCHDOG_MS       500u
 #define CTRL_PRINT_EVENTS      1
@@ -80,15 +96,34 @@
  * and gave up as soon as either sensor saw black - at a crossroads that is
  * the RIGHT sensor swinging back over the straight line, so the car went
  * straight on (simulator, both cases). */
-#define CTRL_JUNCTION_CREEP_MM 65u     /* After both sensors go black, drive
-                                        * this far so the AXLE is on the
-                                        * crossing: sensors 60 mm ahead of the
-                                        * axle + half the 18 mm bar - 4 mm.
-                                        * TUNE ON THE CAR: if the pivot ends
-                                        * with the line beside the car on the
-                                        * side it came from, raise it; past
-                                        * the branch, lower it. */
-#define CTRL_JUNCTION_WAIT_MS  6000u   /* Cap on the creep. */
+/* 23 Nov (v94), MEASURED on the car: the two track sensors are 130 mm
+ * ahead of the wheel axle and 25 mm apart; the line and the crossing bar
+ * are 18 mm wide.  Every value below used to assume 60 mm.
+ *
+ * Junction approach (v94): wait for the crossing bar to pass behind the
+ * sensors (both white again), then drive CTRL_SENSOR_AXLE_MM - half the
+ * bar more, so the AXLE is on the centre of the crossing.  From there the
+ * leading sensor meets the side branch at ~80-88 deg of pivot.
+ *
+ * v93 pivoted the moment the bar passed behind the sensors, i.e. with the
+ * axle still ~121 mm short of the crossing: the leading sensor crossed the
+ * branch at ~16 deg (inside the 45 deg "ignore" window) and the pivot ran
+ * to the 150 deg cap with no line seen -> FAULT (car, 23 Nov, barcode Z). */
+#define CTRL_SENSOR_AXLE_MM    130u    /* Measured 23 Nov: 13 cm.          */
+#define CTRL_BAR_HALF_MM       9u      /* Half the 18 mm crossing bar.     */
+/* Minimum creep before "both sensors white" may count as the bar's far
+   edge: the moment a junction is detected the array can sit on the bar's
+   edge and read white for a sample. */
+#define CTRL_JUNCTION_LEAVE_MM 6u
+/* The bar's far edge is normally seen after ~18 mm.  If it has not been
+   seen by this distance from the junction (a dark patch, a missed sample),
+   take the nominal 18 mm as the far edge and carry on. */
+#define CTRL_JUNCTION_BAR_MAX_MM 48u
+#define CTRL_JUNCTION_BAR_NOM_MM (2u * CTRL_BAR_HALF_MM)
+/* Approach after the far edge: axle onto the crossing centre (121 mm). */
+#define CTRL_JUNCTION_CREEP_MM (CTRL_SENSOR_AXLE_MM - CTRL_BAR_HALF_MM)
+/* Time cap on the whole approach (~139 mm at 20 mm/s = ~7 s). */
+#define CTRL_JUNCTION_WAIT_MS  12000u
 #define CTRL_PIVOT_MIN_DEG     45u     /* Ignore the sensors until then: the
                                         * trailing sensor crosses the straight
                                         * line at ~20-40 deg. */
@@ -116,8 +151,13 @@
  * The car comes back at ~45 deg; from the first touch of a track sensor it
  * creeps until the axle is on the line - longer than at a junction because
  * it crosses at 45 deg, not 90, and a little long on purpose (stopping
- * short leaves the car beside the line).  Tune with CTRL_JUNCTION_CREEP_MM. */
-#define CTRL_REJOIN_CREEP_MM   (CTRL_JUNCTION_CREEP_MM + 25u)
+ * short leaves the car beside the line).
+ * v94: from the first touch the axle reaches the line after driving the
+ * sensor-to-axle distance along the heading (130 mm) plus ~13 mm from the
+ * line's edge to its centre at 45 deg, so 150 mm (was 90 = 60 mm + 30).
+ * Distance only: the junction's "bar passed" event does not apply when
+ * the line is crossed at an angle (v93 applied it here too). */
+#define CTRL_REJOIN_CREEP_MM   (CTRL_SENSOR_AXLE_MM + 20u)
 #define CTRL_REJOIN_SEEK_MM    450u    /* No line by then: FAULT (stop).   */
 #define CTRL_REJOIN_SEEK_MS    30000u  /* At the slow speed, 2 cm/s.      */
 #define CTRL_REJOIN_MIN_DEG    10u
@@ -190,6 +230,10 @@ static uint16_t g_turn_right0 = 0u;
 static uint8_t  g_pivot_phase = 0u;
 static char const * g_turn_why = "";
 static bool    g_b_rejoin    = false;  /* Turn is a bypass rejoin. */
+/* v94 junction approach: crossing bar behind the sensors yet, and the
+ * edge count (from the junction) at which it was. */
+static bool     g_b_bar_passed  = false;
+static uint32_t g_bar_far_edges = 0u;
 
 static uint16_t g_stop_left   = 0u;
 static uint16_t g_stop_right  = 0u;
@@ -915,6 +959,8 @@ start_turn_execute (bool b_approach)
     g_c.turn_cmd    = g_c.pending_cmd;
     g_c.pending_cmd = SUBSYSTEM1_CMD_NONE;
     g_b_rejoin      = false;
+    g_b_bar_passed  = false;
+    g_bar_far_edges = 0u;
     enter(SYS_TURN_EXECUTE);
     turn_mark();
 
@@ -1033,11 +1079,63 @@ run_turn (uint32_t events)
         return;
     }
 
-    if (STEP_TURN_APPROACH == g_c.step)
+    if ((STEP_TURN_APPROACH == g_c.step) && g_b_rejoin)
     {
+        /* After a bypass: distance from the first touch of the line. */
         if ((moved >= motion_mm_to_edges(creep)) ||
             (step_age() >= CTRL_JUNCTION_WAIT_MS))
         {
+            start_turn_rotate();
+        }
+    }
+    else if (STEP_TURN_APPROACH == g_c.step)
+    {
+        /* v94 (23 Nov, measured: sensors 130 mm ahead of the axle).
+         * 1. Wait for the crossing bar to pass behind the sensors: both
+         *    white again after at least CTRL_JUNCTION_LEAVE_MM.  If that is
+         *    not seen by CTRL_JUNCTION_BAR_MAX_MM, use the nominal 18 mm.
+         * 2. Then drive CTRL_JUNCTION_CREEP_MM (130 - 9 = 121 mm) more, so
+         *    the AXLE is on the crossing centre, and pivot.
+         * v93 pivoted at step 1 (axle ~121 mm short) -> FAULT at 150 deg. */
+        if (!g_b_bar_passed)
+        {
+            if ((!subsystem1_left_black()) && (!subsystem1_right_black()) &&
+                (moved >= motion_mm_to_edges(CTRL_JUNCTION_LEAVE_MM)))
+            {
+                g_b_bar_passed  = true;
+                g_bar_far_edges = moved;
+            }
+            else if (moved >= motion_mm_to_edges(CTRL_JUNCTION_BAR_MAX_MM))
+            {
+                g_b_bar_passed  = true;
+                g_bar_far_edges = motion_mm_to_edges(CTRL_JUNCTION_BAR_NOM_MM);
+            }
+            else
+            {
+                /* Still on the crossing bar. */
+            }
+#if CTRL_PRINT_EVENTS
+            if (g_b_bar_passed)
+            {
+                tm_printf((UB *)"S4: junction bar passed after %u edges; "
+                          "creeping %u mm to put the axle on the crossing\n",
+                          (UINT)g_bar_far_edges,
+                          (UINT)CTRL_JUNCTION_CREEP_MM);
+            }
+#endif
+        }
+
+        if ((g_b_bar_passed &&
+             ((moved - g_bar_far_edges) >=
+              motion_mm_to_edges(CTRL_JUNCTION_CREEP_MM))) ||
+            (step_age() >= CTRL_JUNCTION_WAIT_MS))
+        {
+#if CTRL_PRINT_EVENTS
+            tm_printf((UB *)"S4: pivot starts %u edges after the junction%s\n",
+                      (UINT)moved,
+                      (step_age() >= CTRL_JUNCTION_WAIT_MS)
+                          ? " (time cap)" : "");
+#endif
             start_turn_rotate();
         }
     }
@@ -1075,7 +1173,7 @@ run_turn (uint32_t events)
              * line", so nothing would ever stop it.  Stop instead. */
 #if CTRL_PRINT_EVENTS
             tm_printf((UB *)"S4: turned %u deg, no line seen - stopped. "
-                      "Check CTRL_JUNCTION_CREEP_MM / MOTION_PIVOT_DUTY\n",
+                      "Check CTRL_SENSOR_AXLE_MM / MOTION_PIVOT_DUTY\n",
                       (UINT)(g_b_rejoin ? CTRL_REJOIN_MAX_DEG
                              : ((SUBSYSTEM1_CMD_UTURN == g_c.turn_cmd)
                                 ? CTRL_UTURN_MAX_DEG : CTRL_PIVOT_MAX_DEG)));
@@ -1109,7 +1207,11 @@ run_turn (uint32_t events)
         /* No other step in this state. */
     }
 
+    /* v94: the junction approach is now ~139 mm (~7 s at 20 mm/s) and has
+     * its own cap (CTRL_JUNCTION_WAIT_MS), so the 8 s step limit is not
+     * applied to it. */
     if ((SYS_TURN_EXECUTE == g_c.state) &&
+        (STEP_TURN_APPROACH != g_c.step) &&
         (step_age() >= CTRL_MOTION_TIMEOUT_MS))
     {
         enter(SYS_FAULT);

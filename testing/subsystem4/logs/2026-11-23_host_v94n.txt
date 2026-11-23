@@ -1,0 +1,8 @@
+# subsystem4/host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -O1 -D_DEFAULT_SOURCE -I ../../host_common/stubs -I ../../../app_program/subsystem4 -o test_host test_host.c ../../../app_program/subsystem4/scan_calc.c -lm
+./test_host
+[HOST] H-SC01   PASS  echo -> cm, >= 127 cm saturates to 'none'
+[HOST] H-SC02   PASS  5-bit scan index 0..24 = 30..150 deg
+[HOST] H-SC03   PASS  telemetry profile 35 bits / 5 bytes round trip
+[HOST] SUMMARY 3 passed, 0 failed
+exit=0

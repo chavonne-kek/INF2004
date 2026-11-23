@@ -43,6 +43,7 @@ Add a new row for every run. Never edit or delete old rows.
 | YYYY-MM-DD | S2-U01..08 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_….txt` | First on-target run: owner to fill in. |
 | 2026-10-30 | GP21 reset after ENCODER fault | 30 Oct image | team (car) | FAIL | console log (car) | After GP21: IDLE, then LINE_FOLLOW with ENCODER still set and L 0 R 0 mm/s: the reset was lost. Fixed (S2-U09); reproduced and fixed in simulation (`logs/sim_2026-10-30/reset_after_encoder_fault_*`) |
 | 2026-10-29 | S2-U01..08, S2-M01 | 28 Oct image | team (car) | 8/8 PASS; S2-M01 0 edges on GP0–GP3 | console log (car) | No level change on any encoder pin (interrupts and 1 ms polling). Hardware: wheels not turned in the 15 s, or encoders unpowered/unplugged. Repeat S2-M01 |
+| 2026-11-23 | H-MO01..13 | v94n | PC host run | PASS (13/13) | `logs/2026-11-23_host_v94n.txt` | |
 
 ### PID tuning report and motion accuracy (fill in on the car)
 

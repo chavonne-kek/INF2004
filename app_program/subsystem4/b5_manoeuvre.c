@@ -32,6 +32,8 @@ static B5_Side_t Opposite(B5_Side_t side)
     return (side == B5_SIDE_LEFT) ? B5_SIDE_RIGHT : B5_SIDE_LEFT;
 }
 
+static bool SweepFor(B5_Side_t dir, uint16_t totalDeg);
+
 static bool Turn(B5_Side_t side, uint16_t deg)
 {
     return (side == B5_SIDE_LEFT) ? s_io->turnLeft(deg) : s_io->turnRight(deg);
@@ -48,12 +50,14 @@ static bool GuardedForward(uint16_t cm, bool stopAtLine, bool *lineSeen)
         const uint16_t step = ((uint16_t)(cm - done) < B5_STEP_CM) ? (uint16_t)(cm - done)
                                                                     : (uint16_t)B5_STEP_CM;
 
+#if B5_BYPASS_SONAR_GUARD
         if (B5_Sonar_MeasureCm() <= B5_STOP_DIST_CM)
         {
             s_io->stop();
             B5_Status_RaiseFault(B5_FAULT_BYPASS_ABORT);
             return false;
         }
+#endif
         if (!s_io->moveForward(step))
         {
             B5_Status_RaiseFault(B5_FAULT_BYPASS_ABORT);
@@ -170,7 +174,6 @@ static bool PassObstacle(B5_Side_t side, uint8_t closestDistCm)
 #if B5_FIXED_BYPASS
 static bool BypassFixed(B5_Side_t side)
 {
-    uint16_t turned = 0u;
     bool lineSeen = false;
 
     B5_Servo_MoveTo(B5_SERVO_FRONT_DEG);
@@ -204,31 +207,46 @@ static bool BypassFixed(B5_Side_t side)
     B5_LOG("S4: fixed bypass: passed %u cm, turning back to the line\n",
            (unsigned)B5_FIXED_PASS_CM);
 
-    /* 4. Back toward the line in small steps, stopping on the sensors. */
-    while (turned < B5_FIXED_RETURN_MAX_DEG)
+    /* 4. 45 deg toward the line, 20 cm across it, then 45 deg to square
+     * up (left, back to parallel). */
+    if (!Turn(Opposite(side), B5_FIXED_OUT_DEG) ||
+        !GuardedForward(B5_FIXED_RETURN_CM, false, &lineSeen))
     {
-        if (!Turn(Opposite(side), B5_FIXED_RETURN_STEP_DEG))
-        {
-            break;
-        }
-        turned = (uint16_t)(turned + B5_FIXED_RETURN_STEP_DEG);
+        s_io->stop();
+        B5_Status_RaiseFault(B5_FAULT_BYPASS_ABORT);
+        return false;
+    }
+    B5_LOG("S4: fixed bypass: %u cm across, squaring up %u deg\n",
+           (unsigned)B5_FIXED_RETURN_CM, (unsigned)B5_FIXED_OUT_DEG);
+    if (s_io->lineDetected())
+    {
+        B5_LOG("S4: fixed bypass: line found on the way in after %u cm\n",
+               (unsigned)B5_FIXED_RETURN_CM);
+        return true;
+    }
+    if (!Turn(side, B5_FIXED_OUT_DEG))
+    {
+        s_io->stop();
+        B5_Status_RaiseFault(B5_FAULT_BYPASS_ABORT);
+        return false;
+    }
+    if (s_io->lineDetected())
+    {
+        B5_LOG("S4: fixed bypass: line found after squaring up %u deg\n",
+               (unsigned)B5_FIXED_OUT_DEG);
+        return true;
+    }
 
-        if (!GuardedForward(B5_FIXED_RETURN_STEP_CM, false, &lineSeen))
-        {
-            s_io->stop();
-            B5_Status_RaiseFault(B5_FAULT_BYPASS_ABORT);
-            return false;
-        }
-        if (s_io->lineDetected())
-        {
-            B5_LOG("S4: fixed bypass: line found after %u deg\n",
-                   (unsigned)turned);
-            return true;
-        }
+    /* 5. On the small track there is no room to hunt: rotate on the spot. */
+    if (SweepFor(Opposite(side), B5_FIXED_SWEEP_DEG) || s_io->lineDetected())
+    {
+        B5_LOG("S4: fixed bypass: line found by sweeping up to %u deg\n",
+               (unsigned)B5_FIXED_SWEEP_DEG);
+        return true;
     }
 
     B5_LOG("S4: fixed bypass: line not found within %u deg\n",
-           (unsigned)B5_FIXED_RETURN_MAX_DEG);
+           (unsigned)B5_FIXED_SWEEP_DEG);
     s_io->stop();
     B5_Status_RaiseFault(B5_FAULT_LINE_LOST);
     return false;

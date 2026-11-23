@@ -71,3 +71,5 @@ Add a new row for every run. Never edit or delete old rows.
 | 2026-11-17 | H-IM01..04, 09..10, 12..17, 19..25 | `IS25_final_17nov` | integration | PASS (19/19) | `make -C testing/subsystem3/host` | LSM303D driver, lift / overturn stop, distance ramp guard. |
 | 2026-11-17 | H-B4 | `IS25_final_17nov` | integration | PASS (44/44) | `make -C testing/subsystem3/buddy4_host` | |
 | 2026-11-17 | S3-U01..08, 11..16 | `IS25_final_17nov` test image | integration (simulator) | PASS (14/14) | `testing/integration/logs/sim_2026-11-17/` | rp2040js with an LSM303D model at 0x1D; the real kernel and TSK_IMU. On the car: owner to repeat. |
+| 2026-11-23 | H-IM01..21 | v94n | PC host run | PASS (19/19) | `logs/2026-11-23_host_v94n.txt` | |
+| 2026-11-23 | H-B4 | v94n | PC host run | PASS (44/44) | `logs/2026-11-23_buddy4_host_v94n.txt` | |

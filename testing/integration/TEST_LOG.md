@@ -17,6 +17,10 @@ Define a test here before running it. Test IDs never change.
 | INT-05 | Odometry read while written; humps of known height | IF-02, IF-09 (S2 + S3) | manual | Version B test 3. | No impossible values; ±15% |
 | INT-06 | Known values over MQTT; 20 bad commands | IF-06, IF-07, IF-08 (S5 + all) | manual | Version B test 4. | Dashboard = serial log; bad commands change nothing |
 | INT-07 | Buddy 5 hand-over: take / move / release, and abort | IF-05, IF-04 (S4 + S2) | manual | Box on the line: avoidance completes. Then repeat and press pause mid-bypass. | Completes; on pause the car brakes, B5 aborts, no further motion |
+| INT-08 | Junction turn with the measured geometry (v94) | IF-01, IF-03b, IF-04 (S1 + S4 + S2), FR5 | manual | + junction, barcodes Z (left), B (right), D (U-turn), 3 runs each. Console: `S4: junction bar passed`, `S4: pivot starts … edges after the junction`. | Wheels stop on the crossing (~139 mm after the junction), pivot ~90° (U-turn ~180°), follows the branch; no FAULT |
+| INT-09 | Obstacle watch → TSK_CTRL stop (v94n 1 cm rule) | IF-05, IF-03, IF-04 (S4 + S2), FR11 | manual | Box on the line, 5 runs; also 5 runs with no box. | Stops in front of the box every run, no contact; never stops with no box |
+| INT-10 | Fixed bypass on the LEFT and rejoin (v94n) | IF-05, IF-04 (S4 + S2 + S1), FR13, FR14 | manual | After INT-09, 5 runs. | 45° out 20 cm, parallel 20 cm, back 20 cm, sweep ≤ 90° finds the line, LINE_FOLLOW; box not touched |
+| INT-11 | WiFi lost mid-run (S5 + S4) | IF-06, IF-07, NFR11–NFR13 | manual | Hotspot off 20 s during following, then on. | Car never stops for it; reconnects ≤ 12 s; held events flushed |
 *Method:* **auto** = `TEST_CHECK` in code, result printed on the console;
 **manual** = a person observes the result (LED, scope, meter, phone app…).
 
@@ -43,3 +47,7 @@ Add a new row for every run. Never edit or delete old rows.
 | 2026-10-30 | SIM (sensor side) | 30 Oct code | firmware simulation | PASS | `logs/sim_2026-10-30/autostart_*` | Re-run 16:00 from clean builds (the 15:35 runs used a stale simulator build and were removed): each layout follows with its setting, 0 line losses in 13 s; the wrong setting circles |
 | 2026-10-30 | SIM (slower speeds, auto-start, ultrasonic off) | 30 Oct 16:00 code | firmware simulation | PASS | `logs/sim_2026-10-30/autostart_*` | Calibrates, starts following by itself at 12 cm/s, does not stop for an object at 20 cm |
 | 2026-11-17 | SIM (whole system) | `IS25_final_17nov` | firmware simulation | Test image 46/46; lift, overturn, obstacle bypass ×2, barcode turn, noisy drive, old chip: all as expected | `logs/sim_2026-11-17/` | LSM303D model, lift/overturn stop, ray-cast box obstacle. On the car: S3-M07..M09 and a full rubric run. |
+| 2026-11-23 | INT-08 (Z left) | v93 | team (Hao Ming) | FAIL | team observation, no log | Pivot ran to the 150° cap → FAULT; axle ~121 mm short of the crossing (sensors 130 mm ahead of the axle, code assumed 60). Fixed in v94 |
+| 2026-11-23 | INT-08 | v94e | team | PASS | team observation, no log | Team reported the barcode turn working on v94e |
+| 2026-11-23 | INT-09 | v94e | team | FAIL | team observation, no log | Stopped ~50 cm early and sometimes with nothing ahead; sonar reads 1–3 cm for anything within ~50 cm (S4-M08). Replaced by the 1 cm rule in v94h/v94n |
+| YYYY-MM-DD | INT-08..11 | v94n | | PASS / FAIL | `logs/…` | Pre-demo run: fill in |

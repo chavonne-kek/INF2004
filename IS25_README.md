@@ -1,15 +1,17 @@
-# IS25 robot car: final code (26 Oct)
+# IS25 robot car: final code (26 Oct, updated 23 Nov v94n)
 
 All five subsystems are complete and build together into one firmware
 image for the Robo Pico (Pico W, micro T-Kernel 3.0 SMP). The design
 follows Week 6 and the Tribunal 1 decisions (PostTri 1.2).
 `FLASHING_GUIDE.md` explains how to build and flash it.
 
-**Nothing has run on the real car yet.** The values marked `TODO(name)`
-are measurements only the car can give (wheel size, encoder edges, sensor
-levels). Each owner measures them, records the results in their
-`testing/subsystemN/TEST_LOG.md`, and must be able to explain their code at
-Tribunal 2.
+**Status, 23 Nov (v94n):** the code has been run and tuned on the car
+(line following, barcode turns with the measured 130 mm sensor-to-axle
+distance, MQTT dashboard, lift stop; the v94n obstacle rule and fixed bypass
+are checked in the pre-demo run, SYS-07..09).
+Test status, use cases and requirement coverage are in
+`testing/TEST_SUMMARY.md`; known hardware limits (the HC-SR04 runs at 3.3 V
+and does not report distance) are recorded there and in `CHANGES_v94n.md`.
 
 ## Who owns what
 

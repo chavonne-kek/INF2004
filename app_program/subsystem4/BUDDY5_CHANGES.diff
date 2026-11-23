@@ -1,0 +1,692 @@
+diff -u -r orig/b5_config.h new/b5_config.h
+--- buddy5_original/b5_config.h
++++ integrated/b5_config.h
+@@ -4,6 +4,10 @@
+  *
+  * Every value marked VERIFY must be checked against your board pin map and
+  * your physical car before first run.
++ *
++ * IS25 integration (26 Oct): pins moved to the team pin map (TEAM.md),
++ * fine step 5 degrees (statechart 6.1 / Tribunal 1), the echo always goes
++ * through subsystem 2's shared GPIO interrupt.
+  */
+ #ifndef B5_CONFIG_H
+ #define B5_CONFIG_H
+@@ -14,17 +18,13 @@
+ #define B5_USE_TKERNEL              (1)
+ #endif
+ 
+-/* 1 = this module registers the GPIO IRQ callback itself. Leave 0 if the
+- * team already has a shared GPIO IRQ dispatcher, and have it call
+- * B5_Sonar_OnGpioEdge() instead (the Pico SDK allows only ONE callback). */
+-#ifndef B5_SONAR_OWN_IRQ_CALLBACK
+-#define B5_SONAR_OWN_IRQ_CALLBACK   (0)
+-#endif
++/* IS25: the echo edge always comes from subsystem 2's shared GPIO bank-0
++ * interrupt (subsystem2_gpio_attach), so there is no own-callback option. */
+ 
+ /* ---- Pins (VERIFY against Robo Pico pin map / team pin allocation) ------ */
+ #define B5_PIN_SERVO                (15u)
+-#define B5_PIN_SONAR_TRIG           (2u)
+-#define B5_PIN_SONAR_ECHO           (3u)   /* HC-SR04 echo is 5 V: use a divider! */
++#define B5_PIN_SONAR_TRIG           (4u)   /* IS25: GP4, Grove 3 (GP3 = encoder) */
++#define B5_PIN_SONAR_ECHO           (5u)   /* IS25: GP5, Grove 3; module on 3V3 (5 V needs a divider) */
+ 
+ /* ---- Servo ------------------------------------------------------------- */
+ #define B5_SERVO_PULSE_MIN_US       (500u)   /* pulse at 0 deg   */
+@@ -37,15 +37,17 @@
+ #define B5_SERVO_LEFT_DEG           (180u)
+ 
+ /* ---- Ultrasonic -------------------------------------------------------- */
+-#define B5_SONAR_TIMEOUT_MS         (30u)
++#define B5_SONAR_TIMEOUT_MS         (40u)    /* IS25: was 30; HC-SR04 out-of-range pulse is ~38 ms */
+ #define B5_SONAR_GUARD_MS           (15u)    /* quiet time between pings */
++#define B5_SONAR_MIN_CYCLE_MS       (60u)    /* IS25: HC-SR04 datasheet: >= 60 ms
++                                                from trigger to next trigger */
+ #define B5_SONAR_NOECHO_FAULT_COUNT (20u)    /* consecutive misses -> fault */
+ 
+ /* ---- Scanning ---------------------------------------------------------- */
+ #define B5_COARSE_COUNT             (5u)     /* 30,60,90,120,150 deg */
+ #define B5_COARSE_STEP_DEG          (30u)
+-#define B5_FINE_STEP_DEG            (4u)
+-#define B5_FINE_MARGIN_DEG          (28u)    /* widen window around coarse hits */
++#define B5_FINE_STEP_DEG            (5u)     /* IS25: 5 deg grid (was 4) */
++#define B5_FINE_MARGIN_DEG          (30u)    /* IS25: multiple of 5 (was 28) */
+ #define B5_FINE_MAX_SAMPLES         (48u)
+ #define B5_FINE_REPS                (3u)     /* median-of-3 per fine angle (1 or 3) */
+ 
+diff -u -r orig/b5_if.h new/b5_if.h
+--- buddy5_original/b5_if.h
++++ integrated/b5_if.h
+@@ -8,6 +8,14 @@
+  *
+  * Motion calls are expected to BLOCK until the move finishes and return false
+  * if it failed (stall, encoder fault, aborted).
++ *
++ * IS25 integration (26 Oct): in the team design TSK_CTRL is the ONLY task
++ * that commands motion (Week 6, defended at Tribunal 1).  So the motion
++ * calls are implemented in scan_task.c as requests to TSK_CTRL, which
++ * forwards them to subsystem 2 and answers when MOTION_DONE (or a fault)
++ * arrives.  lineFollowEnable() is replaced by takeControl() /
++ * releaseControl(): TSK_CTRL brakes, can refuse (e.g. on a hump, or when
++ * the robot is not running), and decides what happens after a failure.
+  */
+ #ifndef B5_IF_H
+ #define B5_IF_H
+@@ -27,7 +35,12 @@
+ 
+     /* Buddy 3: line following */
+     bool (*lineDetected)(void);              /* any IR sensor on the line */
+-    void (*lineFollowEnable)(bool enable);   /* pause / resume line follower */
++
++    /* IS25: hand-over with the vehicle controller (TSK_CTRL) */
++    bool (*takeControl)(void);               /* stop car, pause line follower;
++                                                false = refused, keep watching */
++    void (*releaseControl)(bool success);    /* true: resume line following;
++                                                false: avoidance failed */
+ 
+     /* Buddy 1: telemetry (may be NULL). Payload is B5_PROFILE_WIRE_BYTES. */
+     void (*publishProfile)(const uint8_t *payload, uint8_t length);
+diff -u -r orig/b5_port.h new/b5_port.h
+--- buddy5_original/b5_port.h
++++ integrated/b5_port.h
+@@ -4,6 +4,10 @@
+  *
+  * Keeps every RTOS-specific call in one place so the rest of Buddy 5 is
+  * portable and the pure logic can be unit-tested on a PC (B5_HOST_TEST).
++ *
++ * IS25 integration (26 Oct): the team firmware does not link the Pico SDK
++ * hardware libraries, so the target branch uses micro T-Kernel only:
++ * tk_dly_tsk, DI/EI and the RP2040 1 MHz timer register (TIMERAWL).
+  */
+ #ifndef B5_PORT_H
+ #define B5_PORT_H
+@@ -19,15 +23,15 @@
+ static inline void B5_Port_DelayMs(uint32_t ms) { (void)ms; }
+ static inline uint32_t B5_Port_NowUs(void) { return 0u; }
+ 
+-#else /* target */
+-
+-#include "pico/stdlib.h"
++#else /* target: micro T-Kernel on the RP2040 */
+ 
+-#if (B5_USE_TKERNEL == 1)
+ #include <tk/tkernel.h>
+ 
+ typedef UINT B5_Irq_t;
+ 
++/* Masks interrupts on THIS core only.  Every B5 shared word has a single
++ * writer (TSK_SCAN), so this only keeps the masked read-modify-writes of
++ * the status word whole against the echo interrupt on the same core. */
+ static inline B5_Irq_t B5_Port_Enter(void)
+ {
+     UINT intsts;
+@@ -47,20 +51,21 @@
+     (void)tk_dly_tsk((RELTIM)ms);
+ }
+ 
+-#else
+-
+-#include "hardware/sync.h"
+-
+-typedef uint32_t B5_Irq_t;
+-static inline B5_Irq_t B5_Port_Enter(void) { return save_and_disable_interrupts(); }
+-static inline void B5_Port_Exit(B5_Irq_t state) { restore_interrupts(state); }
+-static inline void B5_Port_DelayMs(uint32_t ms) { sleep_ms(ms); }
+-
+-#endif /* B5_USE_TKERNEL */
+-
++/* RP2040 free-running 1 MHz timer, low 32 bits. */
+ static inline uint32_t B5_Port_NowUs(void)
+ {
+-    return time_us_32();
++    return (uint32_t)in_w(TIMER_TIMERAWL);
++}
++
++/* Short busy wait (trigger pulse), shorter than one kernel tick. */
++static inline void B5_Port_BusyWaitUs(uint32_t us)
++{
++    const uint32_t start = B5_Port_NowUs();
++
++    while ((B5_Port_NowUs() - start) < us)
++    {
++        /* spin */
++    }
+ }
+ 
+ #endif /* B5_HOST_TEST */
+diff -u -r orig/b5_profile.c new/b5_profile.c
+--- buddy5_original/b5_profile.c
++++ integrated/b5_profile.c
+@@ -1,29 +1,102 @@
+ /**
+  * @file b5_profile.c
+  * @brief Obstacle profiler (pure logic, no hardware access).
++ *
++ * IS25 integration (26 Oct): the firmware does not link libm, so cosf /
++ * sinf / sqrtf / lroundf are replaced by a cosine table (1 degree steps,
++ * x 10000), integer rounding and an integer square root.  The algorithm
++ * is unchanged.
+  */
+-#include <math.h>
+-#include <string.h>
+ #include "b5_profile.h"
+ #include "b5_config.h"
+ 
+-#define PI_F            (3.14159265f)
+-#define DEG_TO_RAD      (PI_F / 180.0f)
+ #define CLEAR_OPEN_CM   (255)
++#define TRIG_SCALE      (10000)
++#define PI_NUM          (355)          /* 355 / 113 = pi to 7 digits */
++#define PI_DEN          (113)
++#define HALF_TURN_DEG   (180)
++#define TENTHS          (10)
+ 
+-static float Rad(uint8_t angleDeg)
++/* cos(a) x 10000 for a = 0..180 degrees. */
++static const int16_t k_cos[B5_ANGLE_MAX_DEG + 1u] =
+ {
+-    return (float)angleDeg * DEG_TO_RAD;
++    10000, 9998, 9994, 9986, 9976, 9962, 9945, 9925, 9903, 9877,
++    9848, 9816, 9781, 9744, 9703, 9659, 9613, 9563, 9511, 9455,
++    9397, 9336, 9272, 9205, 9135, 9063, 8988, 8910, 8829, 8746,
++    8660, 8572, 8480, 8387, 8290, 8192, 8090, 7986, 7880, 7771,
++    7660, 7547, 7431, 7314, 7193, 7071, 6947, 6820, 6691, 6561,
++    6428, 6293, 6157, 6018, 5878, 5736, 5592, 5446, 5299, 5150,
++    5000, 4848, 4695, 4540, 4384, 4226, 4067, 3907, 3746, 3584,
++    3420, 3256, 3090, 2924, 2756, 2588, 2419, 2250, 2079, 1908,
++    1736, 1564, 1392, 1219, 1045, 872, 698, 523, 349, 175,
++    0, -175, -349, -523, -698, -872, -1045, -1219, -1392, -1564,
++    -1736, -1908, -2079, -2250, -2419, -2588, -2756, -2924, -3090, -3256,
++    -3420, -3584, -3746, -3907, -4067, -4226, -4384, -4540, -4695, -4848,
++    -5000, -5150, -5299, -5446, -5592, -5736, -5878, -6018, -6157, -6293,
++    -6428, -6561, -6691, -6820, -6947, -7071, -7193, -7314, -7431, -7547,
++    -7660, -7771, -7880, -7986, -8090, -8192, -8290, -8387, -8480, -8572,
++    -8660, -8746, -8829, -8910, -8988, -9063, -9135, -9205, -9272, -9336,
++    -9397, -9455, -9511, -9563, -9613, -9659, -9703, -9744, -9781, -9816,
++    -9848, -9877, -9903, -9925, -9945, -9962, -9976, -9986, -9994, -9998,
++    -10000
++};
++
++static int32_t CosX(uint8_t angleDeg)
++{
++    return k_cos[(angleDeg > B5_ANGLE_MAX_DEG) ? B5_ANGLE_MAX_DEG : angleDeg];
++}
++
++/* sin(a) = cos(|90 - a|) for a = 0..180. */
++static int32_t SinX(uint8_t angleDeg)
++{
++    const uint8_t a = (angleDeg > B5_ANGLE_MAX_DEG) ? (uint8_t)B5_ANGLE_MAX_DEG : angleDeg;
++
++    return k_cos[(a > 90u) ? (uint8_t)(a - 90u) : (uint8_t)(90u - a)];
++}
++
++/* value / TRIG_SCALE rounded half away from zero (like lroundf). */
++static int16_t RoundScaled(int32_t value)
++{
++    const int32_t half = TRIG_SCALE / 2;
++
++    return (int16_t)((value >= 0) ? ((value + half) / TRIG_SCALE)
++                                  : -((-value + half) / TRIG_SCALE));
++}
++
++static uint32_t ISqrt(uint32_t value)
++{
++    uint32_t root = 0u;
++    uint32_t bit = 1uL << 30;
++    uint32_t rest = value;
++
++    while (bit > rest)
++    {
++        bit >>= 2;
++    }
++    while (bit != 0u)
++    {
++        if (rest >= (root + bit))
++        {
++            rest -= root + bit;
++            root = (root >> 1) + bit;
++        }
++        else
++        {
++            root >>= 1;
++        }
++        bit >>= 2;
++    }
++    return root;
+ }
+ 
+ int16_t B5_Geom_LateralCm(uint8_t angleDeg, uint8_t distCm)
+ {
+-    return (int16_t)lroundf((float)distCm * cosf(Rad(angleDeg)));
++    return RoundScaled((int32_t)distCm * CosX(angleDeg));
+ }
+ 
+ int16_t B5_Geom_ForwardCm(uint8_t angleDeg, uint8_t distCm)
+ {
+-    return (int16_t)lroundf((float)distCm * sinf(Rad(angleDeg)));
++    return RoundScaled((int32_t)distCm * SinX(angleDeg));
+ }
+ 
+ bool B5_Profile_IsObstacle(uint8_t angleDeg, uint8_t distCm)
+@@ -104,16 +177,20 @@
+ 
+ static uint8_t EstimateWidth(const B5_Sample_t *s, uint8_t lo, uint8_t hi, uint8_t stepDeg)
+ {
+-    const float dx = (float)(B5_Geom_LateralCm(s[hi].angle, s[hi].dist) -
+-                             B5_Geom_LateralCm(s[lo].angle, s[lo].dist));
+-    const float dy = (float)(B5_Geom_ForwardCm(s[hi].angle, s[hi].dist) -
+-                             B5_Geom_ForwardCm(s[lo].angle, s[lo].dist));
+-    const float meanDist = ((float)s[lo].dist + (float)s[hi].dist) * 0.5f;
++    const int32_t dx = (int32_t)B5_Geom_LateralCm(s[hi].angle, s[hi].dist) -
++                       (int32_t)B5_Geom_LateralCm(s[lo].angle, s[lo].dist);
++    const int32_t dy = (int32_t)B5_Geom_ForwardCm(s[hi].angle, s[hi].dist) -
++                       (int32_t)B5_Geom_ForwardCm(s[lo].angle, s[lo].dist);
++    /* Chord in tenths of a cm: sqrt(100 (dx^2 + dy^2)). */
++    const int32_t chord10 = (int32_t)ISqrt((uint32_t)(100 * ((dx * dx) + (dy * dy))));
+     /* Each edge sample only proves the object reaches somewhere inside its
+-     * angular cell, so add one cell of arc length to the chord. */
+-    const float cell = meanDist * Rad(stepDeg);
++     * angular cell, so add one cell of arc length to the chord:
++     * mean distance x step in radians, in tenths of a cm. */
++    const int32_t sumDist = (int32_t)s[lo].dist + (int32_t)s[hi].dist;
++    const int32_t cell10 = (sumDist * (int32_t)stepDeg * PI_NUM * TENTHS) /
++                           (2 * PI_DEN * HALF_TURN_DEG);
+ 
+-    return Clamp255((int32_t)lroundf(sqrtf((dx * dx) + (dy * dy)) + cell));
++    return Clamp255((chord10 + cell10 + (TENTHS / 2)) / TENTHS);
+ }
+ 
+ /* Free lateral gap between the object's side and the nearest other return. */
+@@ -156,7 +233,7 @@
+     int16_t xMin;
+     int16_t xMax;
+ 
+-    (void)memset(profile, 0, sizeof(*profile));
++    *profile = (B5_Profile_t){0};   /* IS25: no memset */
+     if (seed < 0)
+     {
+         return false;
+diff -u -r orig/b5_servo.c new/b5_servo.c
+--- buddy5_original/b5_servo.c
++++ integrated/b5_servo.c
+@@ -6,29 +6,39 @@
+  * width in microseconds. Make sure the slice is not shared with Buddy 2's
+  * motor PWM (RP2040: slice = GPIO / 2 mod 8; channels of one slice share
+  * frequency).
++ *
++ * IS25 integration (26 Oct): Pico SDK PWM calls replaced by libbsp plus a
++ * direct write of the slice DIV register (libbsp has no divider call):
++ * 125 MHz / 125 = 1 MHz.  GP15 = slice 7B, used by nothing else.
+  */
+ #include "b5_servo.h"
+ #include "b5_config.h"
+ #include "b5_port.h"
+ #include "b5_types.h"
+-#include "hardware/gpio.h"
+-#include "hardware/pwm.h"
+-#include "hardware/clocks.h"
+-
+-#define TICKS_PER_US_HZ     (1000000.0f)
++#ifndef B5_HOST_TEST
++#include "subsystem4.h"   /* IS25: libbsp pwm_* and register names */
++#endif
++
++#define SERVO_SLICE         (7u)                /* GP15 -> slice 7 */
++#define SERVO_DIV_1MHZ      (125u << 4)         /* DIV is 8.4 fixed point */
++#define PWM_SLICE_STRIDE    (0x14u)
+ 
+ static uint8_t s_angleDeg = B5_SERVO_FRONT_DEG;
+ 
+ void B5_Servo_Init(void)
+ {
+-    pwm_config cfg = pwm_get_default_config();
+-    const uint slice = pwm_gpio_to_slice_num(B5_PIN_SERVO);
++    clr_w(RESETS_RESET, RESETS_RESET_PWM);
++    while ((in_w(RESETS_RESET_DONE) & RESETS_RESET_PWM) == 0u)
++    {
++        /* wait (no effect if the PWM block is already running) */
++    }
+ 
+-    gpio_set_function(B5_PIN_SERVO, GPIO_FUNC_PWM);
+-    pwm_config_set_clkdiv(&cfg, (float)clock_get_hz(clk_sys) / TICKS_PER_US_HZ);
+-    pwm_config_set_wrap(&cfg, (uint16_t)(B5_SERVO_PERIOD_US - 1u));
+-    pwm_init(slice, &cfg, true);
++    (void)pwm_set_pin(B5_PIN_SERVO);
++    out_w(PWM_BASE + (SERVO_SLICE * PWM_SLICE_STRIDE) + PWM_CHx_DIV, SERVO_DIV_1MHZ);
++    (void)pwm_set_wrap(B5_PIN_SERVO, (UW)(B5_SERVO_PERIOD_US - 1u));
++    (void)pwm_set_enabled(B5_PIN_SERVO, TRUE);
+ 
++    s_angleDeg = B5_ANGLE_MAX_DEG;          /* unknown: force a full settle */
+     B5_Servo_MoveTo(B5_SERVO_FRONT_DEG);
+ }
+ 
+@@ -46,7 +56,7 @@
+     pulseUs = B5_SERVO_PULSE_MIN_US +
+               (((uint32_t)target * (B5_SERVO_PULSE_MAX_US - B5_SERVO_PULSE_MIN_US)) /
+                B5_ANGLE_MAX_DEG);
+-    pwm_set_gpio_level(B5_PIN_SERVO, (uint16_t)pulseUs);
++    (void)pwm_set_cc(B5_PIN_SERVO, (UW)pulseUs);
+ 
+     delta = (target > s_angleDeg) ? (uint32_t)(target - s_angleDeg)
+                                   : (uint32_t)(s_angleDeg - target);
+diff -u -r orig/b5_sonar.c new/b5_sonar.c
+--- buddy5_original/b5_sonar.c
++++ integrated/b5_sonar.c
+@@ -8,12 +8,27 @@
+  * The task arms it, the ISR completes it, the task reads and re-idles it.
+  * Each side only ever stores the WHOLE word, so there is no read-modify-write
+  * on shared packed data and no race.
++ *
++ * IS25 integration (26 Oct): Pico SDK GPIO calls replaced by libbsp; the
++ * echo edges arrive through subsystem 2's shared GPIO interrupt
++ * (subsystem2_gpio_attach); FAULT_NO_ECHO in the team fault mask follows
++ * B5_FAULT_NO_ECHO; the last range is kept for TSK_CTRL and telemetry.
+  */
+ #include "b5_sonar.h"
+ #include "b5_config.h"
+ #include "b5_port.h"
+ #include "b5_types.h"
+-#include "hardware/gpio.h"
++#include "subsystem4.h"
++#include "../subsystem2/subsystem2.h"
++
++/* Edge flags, same values as the Pico SDK's GPIO_IRQ_EDGE_*. */
++#define GPIO_IRQ_EDGE_FALL  (0x4u)
++#define GPIO_IRQ_EDGE_RISE  (0x8u)
++
++#define WATCHDOG_TICK_REG      (0x4005802Cu)
++#define WATCHDOG_TICK_ENABLE   (1u << 9)
++#define WATCHDOG_TICK_RUNNING  (1u << 10)
++#define WATCHDOG_TICK_CYCLES   (12u)    /* clk_ref 12 MHz -> 1 us tick */
+ 
+ #define ECHO_US_BITS        (14u)
+ #define ECHO_US_MASK        ((1u << ECHO_US_BITS) - 1u)
+@@ -36,6 +51,12 @@
+ /* Task-private. 20 consecutive misses -> 5 bits needed; one byte of storage. */
+ static uint8_t  s_missCount;
+ 
++/* IS25: last range, written only by TSK_SCAN, read by TSK_CTRL / S5. */
++static volatile uint8_t s_lastCm = B5_DIST_NO_ECHO;
++
++/* IS25: time of the last trigger, for the 60 ms measurement cycle. */
++static uint32_t s_lastTriggerUs;
++
+ void B5_Sonar_OnGpioEdge(uint32_t gpioPin, uint32_t events)
+ {
+     if (gpioPin != B5_PIN_SONAR_ECHO)
+@@ -64,37 +85,54 @@
+     }
+ }
+ 
+-#if (B5_SONAR_OWN_IRQ_CALLBACK == 1)
+-static void OwnCallback(uint gpio, uint32_t events)
++/* IS25: adapter from subsystem 2's shared GPIO interrupt. */
++static void EchoEdge(bool high, uint32_t timeUs)
+ {
+-    B5_Sonar_OnGpioEdge(gpio, events);
++    (void)timeUs;
++    B5_Sonar_OnGpioEdge(B5_PIN_SONAR_ECHO,
++                        high ? GPIO_IRQ_EDGE_RISE : GPIO_IRQ_EDGE_FALL);
+ }
+-#endif
+ 
++/* IS25: the 1 MHz timer counts only if the TIMER block is out of reset and
++ * the watchdog tick runs; start them if the kernel has not. */
++static void EnsureUsTimer(void)
++{
++    clr_w(RESETS_RESET, RESETS_RESET_TIMER);
++    while ((in_w(RESETS_RESET_DONE) & RESETS_RESET_TIMER) == 0u)
++    {
++        /* wait */
++    }
++    if ((in_w(WATCHDOG_TICK_REG) & WATCHDOG_TICK_RUNNING) == 0u)
++    {
++        out_w(WATCHDOG_TICK_REG, WATCHDOG_TICK_ENABLE | WATCHDOG_TICK_CYCLES);
++    }
++}
++
++/* Called from subsystem4_init() (phase 1), before the GPIO interrupt is on. */
+ void B5_Sonar_Init(void)
+ {
+-    gpio_init(B5_PIN_SONAR_TRIG);
+-    gpio_set_dir(B5_PIN_SONAR_TRIG, GPIO_OUT);
+-    gpio_put(B5_PIN_SONAR_TRIG, 0);
+-
+-    gpio_init(B5_PIN_SONAR_ECHO);
+-    gpio_set_dir(B5_PIN_SONAR_ECHO, GPIO_IN);
+-    gpio_pull_down(B5_PIN_SONAR_ECHO);
+-
+-#if (B5_SONAR_OWN_IRQ_CALLBACK == 1)
+-    gpio_set_irq_enabled_with_callback(B5_PIN_SONAR_ECHO,
+-                                       GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
+-                                       true, &OwnCallback);
+-#else
+-    gpio_set_irq_enabled(B5_PIN_SONAR_ECHO,
+-                         GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+-#endif
++    EnsureUsTimer();
++
++    (void)gpio_set_pin(B5_PIN_SONAR_TRIG, GPIO_MODE_OUT);
++    (void)gpio_set_val(B5_PIN_SONAR_TRIG, 0u);
++    (void)gpio_set_pin(B5_PIN_SONAR_ECHO, GPIO_MODE_IN);   /* module drives it low */
++
++    (void)subsystem2_gpio_attach(B5_PIN_SONAR_ECHO, EchoEdge);
++}
++
++uint8_t B5_Sonar_LastCm(void)
++{
++    return s_lastCm;
+ }
+ 
+ static void NoteResult(bool gotEcho)
+ {
+     if (gotEcho)
+     {
++        if (s_missCount >= B5_SONAR_NOECHO_FAULT_COUNT)
++        {
++            subsystem4_fault_clear(FAULT_NO_ECHO);   /* IS25: team mask */
++        }
+         s_missCount = 0u;
+         B5_Status_ClearFault(B5_FAULT_NO_ECHO);
+     }
+@@ -104,6 +142,7 @@
+         if (s_missCount >= B5_SONAR_NOECHO_FAULT_COUNT)
+         {
+             B5_Status_RaiseFault(B5_FAULT_NO_ECHO);
++            subsystem4_fault_raise(FAULT_NO_ECHO);  /* IS25: team mask */
+         }
+     }
+     else
+@@ -118,11 +157,21 @@
+     uint8_t result = B5_DIST_NO_ECHO;
+     uint32_t waitedMs;
+ 
++    /* IS25: HC-SR04 datasheet "use over 60 ms measurement cycle" (Week 6
++     * NFR7, Tribunal 1): wait until 60 ms after the previous trigger, so a
++     * late echo of the last ping is never taken for this one. */
++    while ((B5_Port_NowUs() - s_lastTriggerUs) <
++           (B5_SONAR_MIN_CYCLE_MS * 1000u))
++    {
++        B5_Port_DelayMs(1u);
++    }
++
++    s_lastTriggerUs = B5_Port_NowUs();
+     s_echoWord = ECHO_WORD(ECHO_STATE_ARMED, 0u);
+ 
+-    gpio_put(B5_PIN_SONAR_TRIG, 1);
+-    busy_wait_us_32(TRIGGER_PULSE_US);
+-    gpio_put(B5_PIN_SONAR_TRIG, 0);
++    (void)gpio_set_val(B5_PIN_SONAR_TRIG, 1u);
++    B5_Port_BusyWaitUs(TRIGGER_PULSE_US);
++    (void)gpio_set_val(B5_PIN_SONAR_TRIG, 0u);
+ 
+     for (waitedMs = 0u; waitedMs < B5_SONAR_TIMEOUT_MS; waitedMs++)
+     {
+@@ -150,7 +199,10 @@
+         }
+     }
+ 
+-    NoteResult(result != B5_DIST_NO_ECHO);
++    /* IS25: a far reading (>= 250 cm) is still an echo; only a missing
++     * echo pulse counts toward the NO_ECHO fault (open rooms are normal). */
++    NoteResult(ECHO_WORD_STATE(word) == ECHO_STATE_DONE);
++    s_lastCm = result;
+     B5_Port_DelayMs(B5_SONAR_GUARD_MS);
+     return result;
+ }
+diff -u -r orig/b5_sonar.h new/b5_sonar.h
+--- buddy5_original/b5_sonar.h
++++ integrated/b5_sonar.h
+@@ -18,4 +18,7 @@
+ /** Call from the shared GPIO IRQ dispatcher for the echo pin edges. */
+ void    B5_Sonar_OnGpioEdge(uint32_t gpioPin, uint32_t events);
+ 
++/** IS25: last measured range (1..250 cm, 255 = none); any task may read. */
++uint8_t B5_Sonar_LastCm(void);
++
+ #endif /* B5_SONAR_H */
+diff -u -r orig/b5_task.c new/b5_task.c
+--- buddy5_original/b5_task.c
++++ integrated/b5_task.c
+@@ -1,8 +1,13 @@
+ /**
+  * @file b5_task.c
+  * @brief Buddy 5 main state machine (8 states, 3 bits).
++ *
++ * IS25 integration (26 Oct): runs inside TSK_SCAN (subsystem 4, core 0,
++ * priority 19), the owner of the HC-SR04 and the servo.  Changes, marked
++ * "IS25": the hand-over with TSK_CTRL uses takeControl/releaseControl,
++ * and a failed avoidance is reported to TSK_CTRL (system FAULT, Week 6)
++ * instead of silently resuming line following.
+  */
+-#include <string.h>
+ #include "b5_task.h"
+ #include "b5_config.h"
+ #include "b5_manoeuvre.h"
+@@ -50,7 +55,7 @@
+ void B5_Task_Init(const B5_Interfaces_t *io)
+ {
+     s_io = io;
+-    (void)memset(&s_profile, 0, sizeof(s_profile));
++    s_profile = (B5_Profile_t){0};   /* IS25: no <string.h> (size_t clash with tk/syslib.h) */
+     B5_Status_Init();
+     B5_Servo_Init();
+     B5_Sonar_Init();
+@@ -69,13 +74,13 @@
+     }
+ }
+ 
+-static void HandBack(void)
++static void HandBack(bool success)
+ {
+     s_retries = 0u;
+     B5_Status_SetRetries(0u);
+     B5_Status_SetObstacle(false);
+     B5_Servo_MoveTo(B5_SERVO_FRONT_DEG);
+-    s_io->lineFollowEnable(true);
++    s_io->releaseControl(success);              /* IS25 */
+ }
+ 
+ /* IDLE: line follower drives; we only watch straight ahead. */
+@@ -91,8 +96,11 @@
+         return B5_STATE_IDLE;
+     }
+     hits = 0u;
+-    s_io->stop();                              /* stop (or slow) first */
+-    s_io->lineFollowEnable(false);             /* take over the motors */
++    if (!s_io->takeControl())                  /* IS25: TSK_CTRL stops the car */
++    {
++        B5_Port_DelayMs(B5_CRUISE_PERIOD_MS);  /* refused: keep watching */
++        return B5_STATE_IDLE;
++    }
+     return B5_STATE_COARSE;
+ }
+ 
+@@ -104,7 +112,7 @@
+     (void)B5_Profile_Build(s_coarse, count, B5_COARSE_STEP_DEG, &quick);
+     if (quick.detected == 0u)
+     {
+-        HandBack();                            /* false alarm: carry on */
++        HandBack(true);                        /* false alarm: carry on */
+         return B5_STATE_IDLE;
+     }
+     B5_Status_SetObstacle(true);
+@@ -119,7 +127,7 @@
+     B5_Servo_MoveTo(B5_SERVO_FRONT_DEG);
+     if (!B5_Profile_Build(s_fine, s_fineCount, B5_FINE_STEP_DEG, &profile))
+     {
+-        HandBack();                            /* obstacle gone */
++        HandBack(true);                        /* obstacle gone */
+         return B5_STATE_IDLE;
+     }
+     Publish(&profile);
+@@ -138,7 +146,7 @@
+     switch ((B5_Action_t)s_plan.action)
+     {
+     case B5_ACT_CONTINUE:
+-        HandBack();
++        HandBack(true);
+         next = B5_STATE_IDLE;
+         break;
+     case B5_ACT_TURN_LEFT:
+@@ -189,15 +197,15 @@
+         return B5_STATE_FAULT;
+     }
+     B5_Status_ClearFault(B5_FAULT_BYPASS_ABORT | B5_FAULT_LINE_LOST | B5_FAULT_BLOCKED);
+-    HandBack();                                /* return control to Buddy 3 */
++    HandBack(true);                            /* return control to Buddy 3 */
+     return B5_STATE_IDLE;
+ }
+ 
+ static B5_State_t StateFault(void)
+ {
+     s_io->stop();
++    HandBack(false);                           /* IS25: TSK_CTRL -> system FAULT */
+     B5_Port_DelayMs(B5_FAULT_HOLD_MS);         /* faults stay visible in status */
+-    HandBack();                                /* IDLE watch re-triggers if still blocked */
+     return B5_STATE_IDLE;
+ }
+ 
+@@ -205,7 +213,7 @@
+ {
+     B5_State_t state = B5_STATE_IDLE;
+ 
+-    s_io->lineFollowEnable(true);
++    /* IS25: TSK_CTRL starts line following; we only watch until it is ours. */
+     for (;;)
+     {
+         B5_Status_SetState(state);
+diff -u -r orig/b5_types.c new/b5_types.c
+--- buddy5_original/b5_types.c
++++ integrated/b5_types.c
+@@ -2,7 +2,6 @@
+  * @file b5_types.c
+  * @brief Bit packing for the wire format and race-free shared status word.
+  */
+-#include <string.h>
+ #include "b5_types.h"
+ #include "b5_port.h"
+ 
+@@ -52,7 +51,11 @@
+ {
+     uint8_t pos = 0u;
+ 
+-    (void)memset(out, 0, B5_PROFILE_WIRE_BYTES);
++    for (pos = 0u; pos < B5_PROFILE_WIRE_BYTES; pos++)   /* IS25: no memset */
++    {
++        out[pos] = 0u;
++    }
++    pos = 0u;
+     PutBits(out, &pos, profile->detected, 1u);
+     PutBits(out, &pos, profile->centreAngle, 8u);
+     PutBits(out, &pos, profile->closestAngle, 8u);
+@@ -66,7 +69,7 @@
+ {
+     uint8_t pos = 0u;
+ 
+-    (void)memset(profile, 0, sizeof(*profile));
++    *profile = (B5_Profile_t){0};   /* IS25: no memset */
+     profile->detected = (uint8_t)(GetBits(in, &pos, 1u) & 1u);
+     profile->centreAngle = (uint8_t)GetBits(in, &pos, 8u);
+     profile->closestAngle = (uint8_t)GetBits(in, &pos, 8u);

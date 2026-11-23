@@ -1,0 +1,13 @@
+# v94n firmware build check, 2026-11-23, arm-none-eabi-gcc (xPack GNU Arm Embedded GCC x86_64) 13.3.1 20240614
+## make -j8 (normal image, no MQTT)
+Linker: mtk3pico_smp1_usb_cdc_wifi.elf
+Finished building target: mtk3pico_smp1_usb_cdc_wifi.elf
+arm-none-eabi-size mtk3pico_smp1_usb_cdc_wifi.elf
+ 326576	    148	  25876	 352600	  56158	mtk3pico_smp1_usb_cdc_wifi.elf
+exit=0
+## make TEST=1 -j8 (test image)
+Linker: mtk3pico_smp1_usb_cdc_wifi_test.elf
+Finished building target: mtk3pico_smp1_usb_cdc_wifi_test.elf
+arm-none-eabi-size mtk3pico_smp1_usb_cdc_wifi_test.elf
+ 341292	    148	  25944	 367384	  59b18	mtk3pico_smp1_usb_cdc_wifi_test.elf
+exit=0

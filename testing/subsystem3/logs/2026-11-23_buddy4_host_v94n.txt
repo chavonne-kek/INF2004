@@ -1,0 +1,86 @@
+# subsystem3/buddy4_host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -Werror -DIMU_TEST_HOOKS -I ../../../app_program/subsystem3 -o imu_host_test imu_host_test.c ../../../app_program/subsystem3/imu.c
+./imu_host_test
+imu.c host tests (100 Hz, integer maths)
+
+[T1] 10 s flat cruise at 250 mm/s
+  PASS  no hump on flat ground                               (0)
+  PASS  no lift on flat ground                               (0)
+  PASS  pitch stays level (<0.5 deg)                         (0 in -50..50)
+
+[T2] 30 mm hump, 400 mm long, 250 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 30 mm +/-15% (NFR9)                      (28 in 25..35)
+  PASS  humP flag cleared after the hump                     (0)
+
+[T3] 20 mm hump, 200 mm long, 150 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 20 mm +/-15%                             (19 in 17..23)
+
+[T4] 40 mm hump, 600 mm long, 250 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 40 mm +/-15%                             (38 in 34..46)
+
+[T5] two humps in one run
+  PASS  both humps counted separately                        (2)
+  PASS  second hump peak still 25 mm                         (23 in 21..29)
+
+[T6] 60 % braking ramp (must not stop the robot)
+  PASS  braking alone raises no LIFTED                       (0)
+
+[T7] lifted by hand at 1.5 s (0.2 g up for 0.3 s)
+  PASS  LIFTED raised                                        (162)
+  PASS  raised within 300 ms of the push                     (162 in 150..180)
+  PASS  motion class = LIFTED                                (7)
+  PASS  cause = LIFTED                                       (1)
+  PASS  a lift does not produce a fake hump                  (0)
+
+[T8] 1.2 g vertical kick (hump / pothole edge)
+  PASS  vertical kick raises no LIFTED                       (0)
+
+[T9] held on a 10 deg wedge, stationary
+  PASS  pitch reads 1000 cdeg +/-1.5 deg                     (925 in 850..1150)
+  PASS  a constant slope is not a hump                       (0)
+
+[T10] 60 s of +/-15 mg noise on a flat, moving robot
+  PASS  no false hump in 60 s of noise                       (0)
+  PASS  no false lift in 60 s of noise                       (0)
+  PASS  noise never tilts the pitch estimate (<2 deg)        (25 in -200..200)
+
+[T11] robot at rest
+  PASS  motion class = STATIONARY                            (1)
+
+[T11b] no odometry published yet (IF-02 not ready)
+  PASS  motion = UNKNOWN, not a wrong guess                  (0)
+
+[T12] telemetry packing round-trip
+  PASS  peak field survives the 14-bit field                 (4095)
+  PASS  hump state field                                     (2)
+  PASS  motion field                                         (6)
+  PASS  flags field                                          (10)
+  PASS  sequence field                                       (195)
+  PASS  pitch 12.34 deg -> 0.25 deg grid                     (1225 in 1225..1250)
+  PASS  roll -5.67 deg -> 0.25 deg grid                      (-550 in -600..-550)
+  PASS  pitch below -32 deg clamps, does not wrap            (0)
+
+[T13] record sizes
+  PASS  terrain record is 4 bytes                            (4)
+  PASS  sequence occupies the top byte                       (195)
+
+[T14] rolled onto its roof at 1.5 s, and onto its side
+  PASS  upside down -> LIFTED flag                           (2)
+  PASS  cause = OVERTURNED                                   (2)
+  PASS  on its side -> OVERTURNED                            (2)
+  PASS  45 deg roll is not an overturn                       (0)
+
+[T15] 10 s of vibration with a 1.5 g knock every 0.3 s
+  PASS  knocks raise no LIFTED                               (0)
+
+[T16] latched until imu_clear(), then armed again
+  PASS  still latched 5 s later                              (2)
+  PASS  imu_clear() releases it                              (0)
+  PASS  a second lift is caught                              (2)
+
+----------------------------------------------
+44 passed, 0 failed
+exit=0

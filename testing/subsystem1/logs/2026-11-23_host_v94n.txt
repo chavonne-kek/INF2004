@@ -1,0 +1,71 @@
+# subsystem1/host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -Wconversion -O1 -D_DEFAULT_SOURCE -I stubs -I ../../../app_program/subsystem1 -o test_host test_host.c -lm
+test_host.c: In function 'test_line':
+test_host.c:1054:37: warning: missing initializer for field 'b_arm' of 'subsystem1_line_t' [-Wmissing-field-initializers]
+ 1054 |                                     (f >> 2) & 1};
+      |                                     ^
+In file included from ../../../app_program/subsystem1/barcode.h:14,
+                 from ../../../app_program/subsystem1/barcode.c:37,
+                 from test_host.c:20:
+../../../app_program/subsystem1/subsystem1.h:106:13: note: 'b_arm' declared here
+  106 |     bool    b_arm;          /* Arm (barcode) sensor sees black.   */
+      |             ^~~~~
+test_host.c:817:23: warning: unused variable 'prev' [-Wunused-variable]
+  817 |     int               prev;
+      |                       ^~~~
+./test_host
+[HOST] H-BC01   PASS  slide barcodes A F Z W X Y, both directions
+[HOST] H-BC02   PASS  every Code 39 character, both directions
+         3.0 cm/s: 200 good, 0 missed, 0 wrong
+         5.0 cm/s: 200 good, 0 missed, 0 wrong
+        10.0 cm/s: 200 good, 0 missed, 0 wrong
+        15.0 cm/s: 200 good, 0 missed, 0 wrong
+        20.0 cm/s: 200 good, 0 missed, 0 wrong
+        25.0 cm/s: 200 good, 0 missed, 0 wrong
+        30.0 cm/s: 200 good, 0 missed, 0 wrong
+[HOST] H-BC03   PASS  >= 98% read at 3-30 cm/s with noise
+[HOST] H-BC04   PASS  never a wrong character at 3-30 cm/s
+[HOST] H-BC05   PASS  speed changing x2 while reading (both ways)
+        noisy, 3.5 mm bars,  2.0 cm/s:  97/100 read, 0 wrong
+        noisy, 3.5 mm bars,  3.0 cm/s: 100/100 read, 0 wrong
+        noisy, 3.5 mm bars,  4.0 cm/s: 100/100 read, 0 wrong
+        noisy, 3.5 mm bars,  8.0 cm/s: 100/100 read, 0 wrong
+        noisy, 3.5 mm bars, 12.0 cm/s: 100/100 read, 0 wrong
+[HOST] H-BC13   PASS  track label, blurry spot, motor noise: >= 95% at 2-12 cm/s
+        weaving car (arm speed +-60 %): time widths 0/100, travel widths 100/100 read, 0 wrong
+[HOST] H-BC16   PASS  weaving car: travel widths read >= 95 %, none wrong
+[HOST] H-BC17   PASS  no travel (hand swipe, car parked): time widths still read
+        hand, 3.3 mm narrow,  0.7 cm/s: 40/40 read, 0 wrong
+        hand, 3.3 mm narrow,  2.0 cm/s: 40/40 read, 0 wrong
+        hand, 3.3 mm narrow,  5.0 cm/s: 40/40 read, 0 wrong
+        hand, 3.3 mm narrow, 10.0 cm/s: 40/40 read, 0 wrong
+        hand, 3.3 mm narrow, 20.0 cm/s: 40/40 read, 0 wrong
+        hand, 6.9 mm narrow,  0.7 cm/s: 40/40 read, 0 wrong
+        hand, 6.9 mm narrow,  2.0 cm/s: 40/40 read, 0 wrong
+        hand, 6.9 mm narrow,  5.0 cm/s: 40/40 read, 0 wrong
+        hand, 6.9 mm narrow, 10.0 cm/s: 40/40 read, 0 wrong
+        hand, 6.9 mm narrow, 20.0 cm/s: 40/40 read, 0 wrong
+[HOST] H-BC14   PASS  hand swipe, both demo label sizes, 0.7-20 cm/s, uneven speed
+[HOST] H-BC06   PASS  print ratio 2.2:1 to 3.5:1 still reads
+[HOST] H-BC07   PASS  bars 75% as dark as the line still read
+[HOST] H-BC08   PASS  any one wide bar printed narrow is rejected
+[HOST] H-BC09   PASS  plain black lines 6-60 mm never decode
+        0 false decodes in 20000 random bar sequences
+[HOST] H-BC10   PASS  random bar sequences never decode
+[HOST] H-BC11   PASS  below minimum speed: no wrong character
+[HOST] H-BC12   PASS  A/B/C/D map to left/right/straight/U-turn
+[HOST] H-LS01   PASS  left sensor black alone = steer left
+[HOST] H-LS02   PASS  arm never steers; right guard alone = -15
+[HOST] H-LS21   PASS  right guard alone = right; both white then holds it and fades to 0 within 40 mm (FR1)
+[HOST] H-LS03   PASS  both white = centred, straight, never LOST
+[HOST] H-LS04   PASS  left sensor black = steer left, both black = junction/straight
+[HOST] H-LS05   PASS  left and right branch -> JUNCTION at 5..25 cm/s
+[HOST] H-LS06   PASS  widest barcode bar is never a junction (either side)
+        bars under the arm: worst error 0 mm
+[HOST] H-LS20   PASS  barcode bars under the arm never steer the car (1 Nov)
+[HOST] H-LS12   PASS  10 mm brush / standing still: no junction
+[HOST] H-LS07   PASS  line word: -40..+40 x all flags, 10 bits used
+[HOST] H-LS08   PASS  calibration applies, rejects a flat sweep
+[HOST] H-LS09   PASS  normalise works if black reads low
+[HOST] SUMMARY 28 passed, 0 failed
+exit=0

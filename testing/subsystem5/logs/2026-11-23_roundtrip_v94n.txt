@@ -1,0 +1,6 @@
+# subsystem5/roundtrip - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -O1 -I ../../host_common/stubs -o gen_vectors gen_vectors.c ../../../app_program/subsystem1/line_sense.c ../../../app_program/subsystem1/barcode.c ../../../app_program/subsystem2/motion_calc.c ../../../app_program/subsystem3/imu_glue.c ../../../app_program/subsystem3/imu.c ../../../app_program/subsystem3/imu_math.c ../../../app_program/subsystem4/scan_calc.c ../../../app_program/subsystem5/comms_codec.c -lm
+./gen_vectors vectors.jsonl
+python3 ../../../tools/is25_dashboard.py --selftest vectors.jsonl
+dashboard selftest: 2532 checks, 0 failed
+exit=0

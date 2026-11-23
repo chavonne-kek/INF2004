@@ -1,0 +1,81 @@
+--- his subsystem4/imu.h
++++ subsystem3/imu.h
+@@ -20,6 +20,14 @@
+  *	    a_enc_mg   > 0  accelerating forward
+  *	    dd_mm           distance travelled since the previous sample
+  *
++ *	IS25 (integration, 26 Oct): this file now lives in subsystem3/ (the
++ *	team's IMU subsystem) and is driven by imu_task.c through imu_glue.c.
++ *	The sign model below (ax = -g*sin(pitch) - a_car) is the NEGATIVE of
++ *	what a real LSM303 reports with X forward (it reads +g*sin(pitch) +
++ *	a_car, the specific force).  imu_glue.c therefore passes -forward and
++ *	-left readings, so this module is used unchanged.  See
++ *	BUDDY4_INTEGRATION.md.
++ *
+  *	Data flow:  task_imu.c reads the sensor, fills IMU_SAMPLE and calls
+  *	imu_update() once every 10 ms.  Everything else in the car reads the
+  *	packed results (imu_snapshot) and the event flag bits.
+@@ -75,9 +83,10 @@
+ #define IMU_MIN_SPEED_FOR_IMPACT 100u	/* mm/s; slower cannot collide */
+ #define IMU_SPEED_HISTORY	16u	/* 160 ms of speeds */
+ 
+-/* Full-scale check: CTRL_REG4_A is set to +-2 g, so 1950 mg is "near
+-   saturation" and gets reported in the telemetry flags. */
+-#define IMU_SATURATE_MG		1950
++/* Full-scale check: "near saturation" gets reported in the flags.
++   IS25: the team driver sets CTRL_REG4_A to +-4 g (Week 6), so the limit
++   is 3950 mg (was 1950 for his +-2 g setting). */
++#define IMU_SATURATE_MG		3950
+ 
+ /* Motion classes: 3 bits in the telemetry record (week 8 decision). */
+ #define IMU_MOTION_UNKNOWN	0u	/* no odometry yet */
+@@ -93,6 +102,10 @@
+    peak means the chassis is on a wedge, a ramp or a stack of books - the
+    angle is real but it is not a hump, so it is not counted or reported. */
+ #define IMU_HUMP_MAX_MM		150
++/* IS25: a peak below 5 mm is noise or a hard launch (the encoder
++   acceleration lags the accelerometer by ~25 ms), not a hump.  The track
++   humps are 20-40 mm. */
++#define IMU_HUMP_MIN_MM		5
+ /* After a confirmed impact the accelerometer is not trusted for 0.5 s. */
+ #define IMU_IMPACT_HOLD_TICKS	50u
+ /* A hump can only be entered while the robot is actually moving. */
+--- his subsystem4/imu.c
++++ subsystem3/imu.c
+@@ -111,6 +111,9 @@
+ 	if (mag > 32767) {
+ 		mag = 32767;
+ 	}
++	if (mag == 0) {
++		return 0;		/* IS25: level must read 0, not bucket 0's 0.45 deg */
++	}
+ 	idx = mag >> 9;			/* 0..63 */
+ 	val = asin_cdeg_tbl[idx];
+ 	return (int16_t)((sin_q15 < 0) ? -val : val);
+@@ -261,9 +264,15 @@
+ 			if (hint < 0) {
+ 				hint = 0;
+ 			}
+-			if (hint > IMU_HUMP_MAX_MM) {
++			if ((hint > IMU_HUMP_MAX_MM) || (hint < IMU_HUMP_MIN_MM) ||
++			    ((st.hump_samples >= (uint16_t)IMU_HUMP_MAX_SAMPLES) &&
++			     (st.hump_state == IMU_HUMP_RISING))) {
+ 				/* A slope, a ramp or a stack of books, not a
+-				   hump: drop it silently. */
++				   hump: drop it silently.  IS25: also a peak under
++				   IMU_HUMP_MIN_MM, and a 4 s guard expiry that never
++				   crested (still RISING): a slow 10 deg ramp stays
++				   under 150 mm in 4 s.  A slow long hump has crested
++				   by then and is still reported. */
+ 				hint = 0;
+ 			} else {
+ 				st.hump_peak_mm = (uint16_t)hint;
+@@ -408,7 +417,7 @@
+ 	   way, so no decision in the car depends on roll. */
+ 	st.roll_cdeg = asin_cdeg((-clamp32(st.ay_slow, -1000, 1000) * 32768) / 1000);
+ 
+-	/* 4. Saturation: the sensor is set to +-2 g. */
++	/* 4. Saturation (IS25: the team driver sets +-4 g). */
+ 	amax = iabs32(s->ax_mg);
+ 	if (iabs32(s->ay_mg) > amax) {
+ 		amax = iabs32(s->ay_mg);

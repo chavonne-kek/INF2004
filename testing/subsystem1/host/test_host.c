@@ -834,7 +834,13 @@ test_line (void)
     }
     check("H-LS01", ok, "left sensor black alone = steer left");
 
-    /* The arm steers only after LINE_ARM_MM (12 mm) of unbroken black. */
+    /* The arm steers only after LINE_ARM_MM (12 mm) of unbroken black.
+     * 23 Nov: line_sense keeps the last correction (FR1 hold, 22 Nov) in
+     * file statics that line_sense_init() does not clear, so the previous
+     * check's left-steer was still being held.  Clear it with a junction
+     * sample (both track sensors black) before testing the arm. */
+    line_sense_init(&s);
+    (void)sense(&s, &cal, 300u, 3000u, 3000u, &ln);
     line_sense_init(&s);
     line_sense_travel(&s, 13u);
     (void)sense(&s, &cal, 3000u, 300u, 300u, &ln);
@@ -852,14 +858,31 @@ test_line (void)
         {
             int8_t right_only = ln.error_mm;
 
-            line_sense_init(&s);
+            /* 23 Nov: since the 22 Nov FR1 hold, both white straight after
+             * a correction HOLDS it and fades it to 0 over 40 mm of travel
+             * (bends), instead of snapping straight. */
+            int8_t first_white;
+            int    n;
+
+            line_sense_travel(&s, 10u);
             (void)sense(&s, &cal, 300u, 300u, 300u, &ln);
-            check("H-LS21", (-15 == right_only) && (0 == ln.error_mm),
-                  "right guard alone = right, both white = centred/straight");
+            first_white = ln.error_mm;
+            for (n = 0; n < 4; n++)
+            {
+                line_sense_travel(&s, 10u);
+                (void)sense(&s, &cal, 300u, 300u, 300u, &ln);
+            }
+            check("H-LS21", (-15 == right_only) && (first_white < 0) &&
+                            (first_white > -15) && (0 == ln.error_mm),
+                  "right guard alone = right; both white then holds it and "
+                  "fades to 0 within 40 mm (FR1)");
         }
     }
 
-    /* Centred between the sensors is the healthy state: never LOST. */
+    /* Centred between the sensors is the healthy state: never LOST.
+     * (Clear the FR1 hold first - see H-LS02.) */
+    line_sense_init(&s);
+    (void)sense(&s, &cal, 300u, 3000u, 3000u, &ln);
     line_sense_init(&s);
     ok = 1;
     for (int i = 0; i < 2000; i++)

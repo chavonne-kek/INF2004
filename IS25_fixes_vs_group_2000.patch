@@ -1,0 +1,1074 @@
+diff --git a/app_program/subsystem1/barcode.c b/app_program/subsystem1/barcode.c
+index 2bd860c..2c37675 100644
+--- a/app_program/subsystem1/barcode.c
++++ b/app_program/subsystem1/barcode.c
+@@ -262,8 +262,14 @@ barcode_index_to_char (uint8_t index)
+  * (A left, B right, C straight, D U-turn) so the car still behaves sensibly
+  * if no mapping is sent, but every slot can be rewritten at run time.
+  */
+-#define BARCODE_MAP_LETTERS    32u   /* Code 39 index, 5 bits: */
+-                                     /* 0-9 = 0..9, A-V = 10..31 */
++/* 21 Nov: 36 slots, 0-9 = 0..9, A-Z = 10..35 (the decoder's Code 39
++ * order).  The MQTT map frame carries the LETTER index A = 0 .. Z = 25 in
++ * 5 bits (subsystem4.h, checked < 26 by comms_codec.c), and
++ * barcode_map_set() adds BARCODE_MAP_FIRST_LETTER.  With the table only
++ * 32 slots and the frame sending 10 + letter, W-Z could not be sent at all
++ * (5 bits) and Q-V were rejected by comms_codec.c (index < 26). */
++#define BARCODE_MAP_LETTERS    36u
++#define BARCODE_MAP_FIRST_LETTER 10u
+ 
+ static subsystem1_cmd_t g_map[BARCODE_MAP_LETTERS] =
+ {
+@@ -303,7 +309,11 @@ static subsystem1_cmd_t g_map[BARCODE_MAP_LETTERS] =
+     SUBSYSTEM1_CMD_NONE,      /* S */
+     SUBSYSTEM1_CMD_NONE,      /* T */
+     SUBSYSTEM1_CMD_NONE,      /* U */
+-    SUBSYSTEM1_CMD_NONE       /* V */
++    SUBSYSTEM1_CMD_NONE,      /* V */
++    SUBSYSTEM1_CMD_NONE,      /* W */
++    SUBSYSTEM1_CMD_NONE,      /* X */
++    SUBSYSTEM1_CMD_NONE,      /* Y */
++    SUBSYSTEM1_CMD_NONE       /* Z */
+ };
+ 
+ /*!
+@@ -316,10 +326,12 @@ static subsystem1_cmd_t g_map[BARCODE_MAP_LETTERS] =
+ void
+ barcode_map_set (uint8_t index, subsystem1_cmd_t cmd)
+ {
+-    if ((index < BARCODE_MAP_LETTERS) &&
++    uint32_t slot = (uint32_t)index + BARCODE_MAP_FIRST_LETTER;
++
++    if ((index < 26u) &&
+         (cmd >= SUBSYSTEM1_CMD_LEFT) && (cmd <= SUBSYSTEM1_CMD_UTURN))
+     {
+-        g_map[index] = cmd;
++        g_map[slot] = cmd;
+     }
+ }
+ 
+@@ -329,7 +341,8 @@ barcode_map_set (uint8_t index, subsystem1_cmd_t cmd)
+ subsystem1_cmd_t
+ barcode_map_get (uint8_t index)
+ {
+-    return ((index < BARCODE_MAP_LETTERS) ? g_map[index] : SUBSYSTEM1_CMD_NONE);
++    return ((index < 26u) ? g_map[(uint32_t)index + BARCODE_MAP_FIRST_LETTER]
++                          : SUBSYSTEM1_CMD_NONE);
+ }
+ 
+ /*!
+diff --git a/app_program/subsystem1/line_sense.c b/app_program/subsystem1/line_sense.c
+index f12e090..ac154be 100644
+--- a/app_program/subsystem1/line_sense.c
++++ b/app_program/subsystem1/line_sense.c
+@@ -100,16 +100,8 @@
+ #define LINE_BRANCH_MM         10u     /* BOTH track sensors black this far:
+                                         * a crossing - wider than the gap. */
+ #define LINE_BRANCH_SINGLE_MM  30u     /* ONE sensor black this far: a one-
+-                                        * sided branch.  A curve cannot hold a
+-                                        * sensor on the line that long - the
+-                                        * steering pulls off it in a few mm -
+-                                        * so curves keep steering and braches
+-                                        * still fire.     /* Arm black this far: branch.  17 mm clears
+-                                        * the widest barcode bar (15 mm), so
+-                                        * the label cannot fake a junction.
+-                                        * Back to 14 mm: at 17 mm the car drove
+-                                        * past real branches and never turned
+-                                        * (20 Nov car test). */
++                                        * sided branch (not used: the junction
++                                        * is both track sensors black). */
+ #define LINE_ARM_MM            12u     /* Arm black this far: the line,
+                                         * not a barcode bar (max 9 mm).   */
+ #define LINE_MM_MAX            0xFFu
+diff --git a/app_program/subsystem1/line_task.c b/app_program/subsystem1/line_task.c
+index e813efb..f40e1bb 100644
+--- a/app_program/subsystem1/line_task.c
++++ b/app_program/subsystem1/line_task.c
+@@ -79,6 +79,13 @@ static volatile int8_t   g_line_hint_mm    = 0;
+ static volatile bool     g_arm_black       = false;
+ static volatile bool     g_track_black     = false;
+ static volatile bool     g_both_black      = false;
++/* 20 Nov (night): each track sensor on its own, for the junction pivot
++ * (TSK_CTRL stops the pivot on the LEADING sensor). */
++static volatile bool     g_left_black      = false;   /* GP27, left of line  */
++static volatile bool     g_right_black     = false;   /* GP26, right of line */
++/* 20 Nov (night): TSK_CTRL asks for the barcode reader to be cleared; this
++ * task does it at its next sample, so two tasks never write g_barcode. */
++static volatile bool     g_bc_reset_req    = false;
+ static volatile bool     g_b_quiet_line = false;
+ /* Last raw IR sample (arm, centre, right), read by comms for telemetry. */
+ static volatile uint16_t g_ir_raw[LINE_SENSORS] = {0u, 0u, 0u};
+@@ -499,12 +506,19 @@ sample_thread (INT stacd, void * p_exinf)
+                              g_sense.b_black[LINE_RIGHT]);
+             g_both_black  = (g_sense.b_black[LINE_CENTRE] &&
+                              g_sense.b_black[LINE_RIGHT]);
++            g_left_black  = g_sense.b_black[LINE_CENTRE];
++            g_right_black = g_sense.b_black[LINE_RIGHT];
+ #if S1_TRACK_RIGHT_EDGE
+             word        = mirror_word(word);
+ #endif
+             g_line_word = word;     /* Single 16-bit store (IF-01). */
+ 
+-            if (0u != (word & S1_LINE_VALID_BIT))
++            /* 20 Nov (night): with the sensors outside the line, "valid" is
++             * always true (both white = on the line), so it no longer says
++             * a sensor is OVER the line.  Count a track sensor on black
++             * instead: that is what the obstacle bypass needs to see when it
++             * crosses the line on the way back. */
++            if (g_track_black)
+             {
+                 if (g_line_valid_run < LINE_SEEN_RUN_MS)
+                 {
+@@ -520,6 +534,11 @@ sample_thread (INT stacd, void * p_exinf)
+             {
+                 g_line_valid_run = 0u;
+             }
++            if (g_bc_reset_req)
++            {
++                barcode_init(&g_barcode);
++                g_bc_reset_req = false;
++            }
+             events     |= run_barcode();
+             report(events);
+         }
+@@ -756,19 +775,19 @@ run_barcode (void)
+ #if LINE_PRINT_EVENTS
+         /* r: 1 too many elements, 2 no wide/narrow split, 3 not Code 39,
+          * 4 black too long (the line, not a bar), 5 ended before 29. */
+-        tm_printf((UB *)"S1: BC reject r=%u n=%u min=%u w=",
++        /* 21 Nov: ONE call.  This runs in the 1 kHz sampling task: the
++         * loop of up to 29 tm_printf calls stalled line sensing right after
++         * a barcode - just before the junction it announces.  The full
++         * widths still reach the dashboard (post_trace, bctrace). */
++        tm_printf((UB *)"S1: BC reject r=%u n=%u min=%u w=%u %u %u %u %u "
++                  "%u %u %u %u %u\n",
+                   g_barcode.reason, g_barcode.report_count,
+-                  g_barcode.report_min);
+-        {
+-            uint8_t i = 0u;
+-
+-            for (i = 0u; (i < g_barcode.report_count) &&
+-                         (i < BARCODE_REPORT_WIDTHS); i++)
+-            {
+-                tm_printf((UB *)"%u ", g_barcode.report[i]);
+-            }
+-        }
+-        tm_printf((UB *)"\n");
++                  g_barcode.report_min, g_barcode.report[0],
++                  g_barcode.report[1], g_barcode.report[2],
++                  g_barcode.report[3], g_barcode.report[4],
++                  g_barcode.report[5], g_barcode.report[6],
++                  g_barcode.report[7], g_barcode.report[8],
++                  g_barcode.report[9]);
+ #endif
+ 
+         /* Bit 7 marks a diagnostic, not a character: the same path reaches
+@@ -1065,5 +1084,25 @@ travel_mm (void)
+ void
+ subsystem1_barcode_reset (void)
+ {
+-    barcode_init(&g_barcode);
++    /* 20 Nov (night): was barcode_init(&g_barcode) straight from TSK_CTRL,
++     * while this task could be in the middle of barcode_step() on it. */
++    g_bc_reset_req = true;
++}
++
++/*!
++ * @brief Left track sensor (GP27, just left of the line) on black.
++ */
++bool
++subsystem1_left_black (void)
++{
++    return (g_left_black);
++}
++
++/*!
++ * @brief Right track sensor (GP26, just right of the line) on black.
++ */
++bool
++subsystem1_right_black (void)
++{
++    return (g_right_black);
+ }
+diff --git a/app_program/subsystem1/subsystem1.h b/app_program/subsystem1/subsystem1.h
+index 42a15e5..60c4a70 100644
+--- a/app_program/subsystem1/subsystem1.h
++++ b/app_program/subsystem1/subsystem1.h
+@@ -157,6 +157,8 @@ bool     subsystem1_arm_black(void);
+ bool     subsystem1_track_black(void);
+ void     subsystem1_line_bias(int8_t bias_mm);
+ bool     subsystem1_track_both_black(void); /* 18 Nov */
++bool     subsystem1_left_black(void);       /* 20 Nov: GP27 on black */
++bool     subsystem1_right_black(void);      /* 20 Nov: GP26 on black */
+ 
+ #endif /* SUBSYSTEM1_H */
+ 
+diff --git a/app_program/subsystem1/subsystem1_test.c b/app_program/subsystem1/subsystem1_test.c
+index 98fb07c..e316ec7 100644
+--- a/app_program/subsystem1/subsystem1_test.c
++++ b/app_program/subsystem1/subsystem1_test.c
+@@ -153,7 +153,11 @@ subsystem1_test (void)
+                    "decodes while the speed changes");
+     }
+ 
+-    /* S1-U09: left-edge error sign convention (positive = steer left). */
++    /* S1-U09: error sign convention (positive = steer left).
++     * 20 Nov straddle layout: the two track sensors (LINE_CENTRE = left,
++     * LINE_RIGHT = right) sit just outside the line edges, so both white
++     * is the healthy straight-ahead state.  The arm (LINE_LEFT) is the
++     * barcode reader and never steers. */
+     {
+         line_sense_t      sense;
+         line_cal_t        cal;
+@@ -163,28 +167,32 @@ subsystem1_test (void)
+         line_sense_init(&sense);
+         line_sense_cal_default(&cal);
+ 
+-        (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_EDGE,
++        /* Line between the sensors: valid, straight. */
++        (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_WHITE,
+                          TEST_RAW_WHITE, &line);
+         b_ok = b_ok && line.b_valid && (0 == line.error_mm);
+ 
+-        (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_DARKER,
++        /* Left sensor on the line: the car drifted right, steer left.
++         * 17 Nov ramp: starts at 15 mm and grows with travel. */
++        (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_BLACK,
+                          TEST_RAW_WHITE, &line);
+-        b_ok = b_ok && (line.error_mm > 0);
++        b_ok = b_ok && (15 == line.error_mm);
+ 
+-        /* The arm steers only after 12 mm of black (1 Nov: a barcode
+-         * bar is at most 9 mm), so give it 13 mm of travel. */
+-        line_sense_travel(&sense, 13u);
++        /* Arm alone on black (a barcode bar): no steering. */
+         (void)sense_once(&sense, &cal, TEST_RAW_BLACK, TEST_RAW_WHITE,
+                          TEST_RAW_WHITE, &line);
+-        b_ok = b_ok && (S1_LINE_ERR_MAX_MM == line.error_mm);
++        b_ok = b_ok && line.b_valid && (0 == line.error_mm);
+ 
+-        line_sense_init(&sense);
++        /* Right sensor on the line: the car drifted left, steer right. */
+         (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_WHITE,
+                          TEST_RAW_BLACK, &line);
+-        /* 17 Nov: the right guard starts at -15 mm and grows to -40 mm
+-         * with travel (line_sense.c LINE_RAMP_MM), so no sudden swerve. */
+         b_ok = b_ok && (-15 == line.error_mm);
+ 
++        /* Both on black: a junction, held straight. */
++        (void)sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_BLACK,
++                         TEST_RAW_BLACK, &line);
++        b_ok = b_ok && (0 == line.error_mm) && line.b_junction;
++
+         TEST_CHECK("S1-U09", b_ok, "line error sign: + = steer left");
+     }
+ 
+@@ -206,7 +214,9 @@ subsystem1_test (void)
+         TEST_CHECK("S1-U10", b_ok, "line word packs -40..+40 and flags");
+     }
+ 
+-    /* S1-U11: LINE_LOST after 300 ms with no line, LINE_FOUND after it. */
++    /* S1-U11: 20 Nov straddle layout - both track sensors white is the
++     * healthy state (line between them), so 320 ms of it must NOT raise
++     * LINE_LOST and start a recovery sweep. */
+     {
+         line_sense_t      sense;
+         line_cal_t        cal;
+@@ -223,14 +233,10 @@ subsystem1_test (void)
+                                  TEST_RAW_WHITE, TEST_RAW_WHITE, &line);
+         }
+ 
+-        events |= sense_once(&sense, &cal, TEST_RAW_WHITE, TEST_RAW_EDGE,
+-                             TEST_RAW_WHITE, &line);
+-
+         TEST_CHECK("S1-U11",
+-                   (0u != (events & (uint8_t)LINE_EVT_LOST)) &&
+-                   (0u != (events & (uint8_t)LINE_EVT_FOUND)) &&
+-                   (!line.b_lost),
+-                   "LINE_LOST after 300 ms, then LINE_FOUND");
++                   (0u == (events & (uint8_t)LINE_EVT_LOST)) &&
++                   line.b_valid && (!line.b_lost),
++                   "both sensors white 320 ms: valid, no LINE_LOST");
+     }
+ 
+     /* S1-U16: NFR1, worst TSK_LINE sample time <= 0.5 ms (1 MHz timer). */
+diff --git a/app_program/subsystem2/motion_task.c b/app_program/subsystem2/motion_task.c
+index d3cd241..d171d09 100644
+--- a/app_program/subsystem2/motion_task.c
++++ b/app_program/subsystem2/motion_task.c
+@@ -450,6 +450,10 @@ apply_command (subsystem2_op_t op, uint8_t arg)
+         case S2_OP_TURN_LEFT:
+             /* (left wheel back, right wheel forward) - anticlockwise. */
+             start_move(-1, 1, motion_turn_arc_mm(arg), MOTION_TURN_SPEED_MM_S);
++            /* 20 Nov (night): without this the pivot never ran - the state
++             * stayed FOLLOW/BRAKED, so a TURN command did nothing (the open
++             * loop pivot in run_wheels() is only reached in TURN). */
++            enter(S2_STATE_TURN);
+         break;
+ 
+         case S2_OP_TURN_RIGHT:
+@@ -458,6 +462,7 @@ apply_command (subsystem2_op_t op, uint8_t arg)
+              * deg because the turn ended on the average of the two encoders
+              * and the left one undercounts; see done_edges below. */
+             start_move(1, -1, motion_turn_arc_mm(arg), MOTION_TURN_SPEED_MM_S);
++            enter(S2_STATE_TURN);   /* 20 Nov (night): see TURN_LEFT. */
+         break;
+ 
+         case S2_OP_SPEED:
+@@ -766,6 +771,11 @@ run_wheels (void)
+                               (int32_t)MOTION_PIVOT_DUTY;
+         g_m.duty[ENC_RIGHT] = (int32_t)g_m.direction[ENC_RIGHT] *
+                               (int32_t)MOTION_PIVOT_DUTY;
++        /* 20 Nov (night): this branch returned without writing the duty to
++         * the motors, so a pivot kept whatever the wheels were doing before
++         * (simulator: both wheels went on forward at the follow speed, 0 deg
++         * of turn). */
++        drv_motor_set(g_m.duty[ENC_LEFT], g_m.duty[ENC_RIGHT]);
+ 
+         return;
+     }
+diff --git a/app_program/subsystem3/imu.c b/app_program/subsystem3/imu.c
+index a1eefe2..3256822 100644
+--- a/app_program/subsystem3/imu.c
++++ b/app_program/subsystem3/imu.c
+@@ -800,7 +800,6 @@ roll_hump_step (int16_t roll_cdeg, int32_t sin_q15)
+ 	int32_t dev_cdeg;
+ 	int32_t mag;
+ 	int32_t mm;
+-	int32_t s;
+ 
+ 	if (0u == g_b_hump_diag) {
+ 		return;		/* spec behaviour */
+diff --git a/app_program/subsystem4/b5_config.h b/app_program/subsystem4/b5_config.h
+index b11c818..78aa2f9 100644
+--- a/app_program/subsystem4/b5_config.h
++++ b/app_program/subsystem4/b5_config.h
+@@ -98,6 +98,14 @@
+ #define B5_RETURN_OVERSHOOT_CM      (15u)
+ #define B5_RECOVER_CREEP_CM         (15u)
+ #define B5_RECOVER_SWEEP_DEG        (60u)
++/* IS25 20 Nov: straddle sensor layout (track sensors just OUTSIDE the line
++ * edges, both white = on the line).  Stopping at the first touch of the line
++ * and squaring up left the car parallel to the line but beside it, and both
++ * white then looked like "on the line" (simulator: drove off).  With 1, the
++ * engine stops after turning back toward the line and TSK_CTRL rejoins it:
++ * drive until a track sensor touches the line, creep the axle onto it,
++ * pivot until the line is between the sensors (ctrl_task.c STEP_REJOIN_*). */
++#define B5_REJOIN_BY_CTRL           (1)
+ #define B5_RECOVER_SWEEP_STEP_DEG   (10u)
+ #define B5_FAULT_HOLD_MS            (1000u)
+ 
+diff --git a/app_program/subsystem4/b5_manoeuvre.c b/app_program/subsystem4/b5_manoeuvre.c
+index 3e045ff..ade6091 100644
+--- a/app_program/subsystem4/b5_manoeuvre.c
++++ b/app_program/subsystem4/b5_manoeuvre.c
+@@ -176,6 +176,14 @@ bool B5_Manoeuvre_Bypass(B5_Side_t side, uint8_t shiftCm, uint8_t closestDistCm)
+         return false;
+     }
+ 
++#if B5_REJOIN_BY_CTRL
++    /* IS25 20 Nov: heading back toward the line at 45 deg; TSK_CTRL drives
++     * the rest (b5_config.h B5_REJOIN_BY_CTRL). */
++    (void)lineSeen;
++    B5_LOG("S4: heading back: %s\n", "TSK_CTRL rejoins the line");
++    return true;
++#endif
++
+     /* Head back toward the line; stop as soon as an IR sensor sees it. */
+     if (!GuardedForward((uint16_t)(diagonal + B5_RETURN_OVERSHOOT_CM), true, &lineSeen))
+     {
+diff --git a/app_program/subsystem4/b5_task.c b/app_program/subsystem4/b5_task.c
+index 6584461..e406255 100644
+--- a/app_program/subsystem4/b5_task.c
++++ b/app_program/subsystem4/b5_task.c
+@@ -278,10 +278,16 @@ static B5_State_t StateRecover(void)
+ {
+     B5_Side_t lineSide = B5_SIDE_LEFT;
+ 
++#if B5_REJOIN_BY_CTRL
++    /* IS25 20 Nov: TSK_CTRL finds the line (b5_config.h); it lies on the
++     * side opposite the detour, and the hint below tells TSK_CTRL so. */
++    lineSide = (s_lastSide == B5_SIDE_LEFT) ? B5_SIDE_RIGHT : B5_SIDE_LEFT;
++#else
+     if (!B5_Manoeuvre_RecoverLine(s_lastSide, &lineSide))
+     {
+         return B5_STATE_FAULT;
+     }
++#endif
+     /* IS25 18 Nov: the follower's "last side" is from before the obstacle;
+      * tell it where the line is now in case it loses it again at once. */
+     if (s_io->lineHint != NULL)
+@@ -289,7 +295,11 @@ static B5_State_t StateRecover(void)
+         s_io->lineHint(lineSide == B5_SIDE_LEFT);
+     }
+     B5_Status_ClearFault(B5_FAULT_BYPASS_ABORT | B5_FAULT_LINE_LOST | B5_FAULT_BLOCKED);
++#if B5_REJOIN_BY_CTRL
++    B5_LOG("S4: past the obstacle: %s\n", "TSK_CTRL rejoins the line");
++#else
+     B5_LOG("S4: back on the line after the obstacle: %s\n", "following");
++#endif
+     HandBack(true);                            /* return control to Buddy 3 */
+     return B5_STATE_IDLE;
+ }
+diff --git a/app_program/subsystem4/ctrl_task.c b/app_program/subsystem4/ctrl_task.c
+index 378c2cb..141596b 100644
+--- a/app_program/subsystem4/ctrl_task.c
++++ b/app_program/subsystem4/ctrl_task.c
+@@ -25,6 +25,7 @@
+ #include "../subsystem1/subsystem1.h"
+ #include "../subsystem1/barcode.h"
+ #include "../subsystem2/subsystem2.h"
++#include "../subsystem2/motion_calc.h"   /* mm / degrees -> encoder edges */
+ #include "../subsystem3/subsystem3.h"
+ #include "../subsystem5/subsystem5.h"
+ 
+@@ -69,17 +70,54 @@
+  * circle, so the heading is approximate (it is only reported, never used
+  * for steering). */
+ #define CTRL_CAL_SWEEP_DEG     60u
+-#define CTRL_JUNCTION_CREEP_MM 40u     /* Creep past the junction before the
+-                                        * pivot, so the AXLE is on the branch.
+-                                        * The arm cannot be the trigger: its
+-                                        * lane is already over the junction's
+-                                        * black, so "arm black" is true the
+-                                        * moment the car arrives (owner, car
+-                                        * test 20 Nov). */
+-#define CTRL_BRANCH_LEAN_MM      45   /* junction: lean, do not pivot */
+-#define CTRL_TURN_MIN_MS        250u  /* ignore the junction's own black  */
+-#define CTRL_TURN_MS            1200u /* pivot cap if no line appears     */
++/* 20 Nov (night): junction turn = creep, then PIVOT on the spot until the
++ * LEADING track sensor has crossed the new line (crossroads; pivot allowed
++ * by the owner).  The lean it replaces only ever turned ~24 deg (1.2 s cap)
++ * and gave up as soon as either sensor saw black - at a crossroads that is
++ * the RIGHT sensor swinging back over the straight line, so the car went
++ * straight on (simulator, both cases). */
++#define CTRL_JUNCTION_CREEP_MM 65u     /* After both sensors go black, drive
++                                        * this far so the AXLE is on the
++                                        * crossing: sensors 60 mm ahead of the
++                                        * axle + half the 18 mm bar - 4 mm.
++                                        * TUNE ON THE CAR: if the pivot ends
++                                        * with the line beside the car on the
++                                        * side it came from, raise it; past
++                                        * the branch, lower it. */
+ #define CTRL_JUNCTION_WAIT_MS  6000u   /* Cap on the creep. */
++#define CTRL_PIVOT_MIN_DEG     45u     /* Ignore the sensors until then: the
++                                        * trailing sensor crosses the straight
++                                        * line at ~20-40 deg. */
++#define CTRL_PIVOT_MAX_DEG     150u    /* Stop anyway (the follower takes
++                                        * over).  The pivot ends on the
++                                        * leading sensor long before. */
++#define CTRL_UTURN_MIN_DEG     135u    /* Past the side branch (90 deg). */
++#define CTRL_UTURN_MAX_DEG     240u
++#define CTRL_CROSS_MM          40u     /* "Go straight": past the crossing
++                                        * bar, held straight, then follow. */
++/* 20 Nov (car): brake after a pivot and wait this long before following.
++ * Switching from the pivot straight into following left the reversing
++ * wheel spinning backwards; the single-phase encoder reported it as fast
++ * FORWARD, so the speed loop drove it further backwards and the car sped
++ * up and kept spinning.  Braked, the wheels stop and the speed window
++ * (MOTION_SPEED_WINDOW) empties before the loop runs again. */
++#define CTRL_TURN_STOP_MS      300u    /* At least this long, and ...    */
++#define CTRL_TURN_QUIET_CYCLES 3u      /* ... no encoder edge for 3 x 50 ms
++                                        * (wheels really stopped: a car
++                                        * that coasts kept a wheel turning
++                                        * backwards after 300 ms - simulator
++                                        * with a heavy motor). */
++#define CTRL_TURN_STOP_MAX_MS  2000u
++/* 20 Nov: rejoining the line after an obstacle bypass (straddle layout).
++ * The car comes back at ~45 deg; from the first touch of a track sensor it
++ * creeps until the axle is on the line - longer than at a junction because
++ * it crosses at 45 deg, not 90, and a little long on purpose (stopping
++ * short leaves the car beside the line).  Tune with CTRL_JUNCTION_CREEP_MM. */
++#define CTRL_REJOIN_CREEP_MM   (CTRL_JUNCTION_CREEP_MM + 25u)
++#define CTRL_REJOIN_SEEK_MM    450u    /* No line by then: FAULT (stop).   */
++#define CTRL_REJOIN_SEEK_MS    30000u  /* At the slow speed, 2 cm/s.      */
++#define CTRL_REJOIN_MIN_DEG    10u
++#define CTRL_REJOIN_MAX_DEG    100u
+ #define CTRL_MOTION_TIMEOUT_MS 8000u   /* Any MOVE/TURN must finish.       */
+ #define CTRL_RECOVERY_MS       15000u  /* SEARCH_LINE / LINE_RECOVERY
+                                         * (18 Nov: 5 -> 15 s: 5 s one way,
+@@ -90,9 +128,6 @@
+ #define CTRL_HUMP_NEAR_CM      10u     /* Always stop below this on a hump. */
+ #define CTRL_AVOID_MOVE_MS     9000u   /* < TSK_SCAN's 10 s wait.          */
+ #define CTRL_AVOID_SILENT_MS   30000u  /* No request from TSK_SCAN.        */
+-#define CTRL_TURN_DEG          90u
+-#define CTRL_UTURN_DEG         180u
+-#define CTRL_CROSS_CM          5u      /* "Go straight" across a junction. */
+ /* 1 Nov: before a turn at a junction, drive this far so the WHEELS are on
+  * the junction, not the IR sensors (they are ahead of the axle, and a turn
+  * spins about the axle).  = distance from the IR sensors to the wheel
+@@ -132,7 +167,9 @@ typedef enum
+     STEP_AVOID_MOVING,      /* Engine's motion request running. */
+     STEP_TURN_APPROACH,     /* Wheels onto the junction.        */
+     STEP_TURN_ROTATE,       /* The barcode's turn (or straight). */
+-    STEP_TURN_SETTLE,       /* 20 Nov: pivot done, braking.     */
++    STEP_TURN_CROSS,        /* 20 Nov (night): straight across.  */
++    STEP_TURN_STOP,         /* 20 Nov (car): braked after a pivot. */
++    STEP_REJOIN_SEEK,       /* 20 Nov: after a bypass, find the line. */
+     STEP_RECOVERY_OTHER_WAY /* 18 Nov: searching the other side.  */
+ } ctrl_step_t;
+ 
+@@ -140,16 +177,75 @@ static ID gh_ctrl_task = 0;
+ 
+ static volatile uint8_t g_state = (uint8_t)SYS_INIT_CALIBRATE;  /* 1 writer */
+ 
+-/* Odometer when the junction was seen, for the creep before the pivot. */
+-static uint16_t g_junction_mm = 0u;
++/* 20 Nov (night): encoder counts when the current turn step began, and
++ * the pivot's progress (0: leaving the old line, 1: leading sensor on the
++ * new line).  Distances use the wheel that counted MORE edges, as the
++ * pivot itself does (motion_task.c): the left encoder under-counts. */
++static uint16_t g_turn_left0  = 0u;
++static uint16_t g_turn_right0 = 0u;
++static uint8_t  g_pivot_phase = 0u;
++static char const * g_turn_why = "";
++static bool    g_b_rejoin    = false;  /* Turn is a bypass rejoin. */
+ 
+-static uint16_t odo_mm(void)
++static uint16_t g_stop_left   = 0u;
++static uint16_t g_stop_right  = 0u;
++static uint8_t  g_stop_quiet  = 0u;
++
++static void
++stop_pivot (char const * p_why)
+ {
+-    subsystem2_odom_t odom;
++    (void)subsystem2_stop();
++    g_turn_why = p_why;
++    subsystem2_encoder_counts(&g_stop_left, &g_stop_right);
++    g_stop_quiet = 0u;
++}
++
++/* True once both wheels have stopped turning (no encoder edge, either
++ * direction, for CTRL_TURN_QUIET_CYCLES control cycles). */
++static bool
++wheels_quiet (void)
++{
++    uint16_t left  = 0u;
++    uint16_t right = 0u;
++
++    subsystem2_encoder_counts(&left, &right);
++
++    if ((left == g_stop_left) && (right == g_stop_right))
++    {
++        if (g_stop_quiet < 255u)
++        {
++            g_stop_quiet++;
++        }
++    }
++    else
++    {
++        g_stop_quiet = 0u;
++        g_stop_left  = left;
++        g_stop_right = right;
++    }
+ 
+-    subsystem2_odometry_read(&odom);
++    return (g_stop_quiet >= CTRL_TURN_QUIET_CYCLES);
++}
+ 
+-    return (odom.distance_mm);
++static void
++turn_mark (void)
++{
++    subsystem2_encoder_counts(&g_turn_left0, &g_turn_right0);
++}
++
++static uint32_t
++turn_edges (void)
++{
++    uint16_t left  = 0u;
++    uint16_t right = 0u;
++    uint16_t d_left;
++    uint16_t d_right;
++
++    subsystem2_encoder_counts(&left, &right);
++    d_left  = (uint16_t)(left - g_turn_left0);      /* Wrap-safe. */
++    d_right = (uint16_t)(right - g_turn_right0);
++
++    return ((d_left > d_right) ? (uint32_t)d_left : (uint32_t)d_right);
+ }
+ 
+ /* Private to the task. */
+@@ -188,6 +284,9 @@ static void     run_state(uint32_t events, bool b_start, bool b_reset);
+ static void     start_following(uint8_t speed_cms);
+ static void     start_turn_execute(bool b_approach);
+ static void     start_turn_rotate(void);
++static void     run_turn(uint32_t events);
++static void     finish_turn(char const * p_why);
++static void     start_rejoin(bool b_line_on_left);
+ static void     handle_avoid_requests(void);
+ static void     run_avoid(uint32_t events);
+ static void     answer_avoid(bool b_yes);
+@@ -428,57 +527,7 @@ run_state (uint32_t events, bool b_start, bool b_reset)
+         break;
+ 
+         case SYS_TURN_EXECUTE:
+-            if (STEP_TURN_APPROACH == g_c.step)
+-            {
+-                /* Creep straight on and pivot the moment the ARM sees the
+-                 * branch.  No stop, no distance: the creep is ordinary line
+-                 * following at the slow speed, which keeps the car straight
+-                 * over the junction's black.  Events are ignored here so a
+-                 * stray MOTION_DONE cannot drop the car into recovery.
+-                 * CTRL_JUNCTION_WAIT_MS is only a cap for a branch the arm's
+-                 * lane misses entirely. */
+-                /* Distance, not the arm: on this car's left branch the
+-                 * branch line never reaches the arm's lane, so waiting for
+-                 * it means creeping forever (car log 20:38:53 - three
+-                 * seconds of creep, arm stayed white, no pivot). */
+-                if (((uint16_t)(odo_mm() - g_junction_mm) >=
+-                     (uint16_t)CTRL_JUNCTION_CREEP_MM) ||
+-                    (step_age() >= CTRL_JUNCTION_WAIT_MS))
+-                {
+-                    start_turn_rotate();
+-                }
+-            }
+-            else if ((STEP_TURN_ROTATE == g_c.step) &&
+-                     (step_age() >= CTRL_TURN_MIN_MS) &&
+-                     ((!subsystem1_track_both_black() &&
+-                       subsystem1_track_black()) ||
+-                      (step_age() >= CTRL_TURN_MS)))
+-            {
+-                /* 20 Nov: the turn is timed, not encoder-counted.  The
+-                 * LSM303D has no gyroscope (accelerometer + magnetometer
+-                 * only), and the magnetometer is useless next to two motors,
+-                 * so there is no heading to close a loop on; the left
+-                 * encoder undercounts badly (20 mm/s against 320 at equal
+-                 * duty) and dragged a 90 deg turn out to ~170 deg.  At the
+-                 * fixed pivot duty the rotation rate is repeatable, so the
+-                 * clock is the honest measure. */
+-                subsystem1_line_bias(0);   /* back to plain following */
+-                start_following(CTRL_SPEED_SLOW_CMS);
+-                set_step(STEP_TURN_SETTLE);
+-            }
+-            else if (0u != (events & EVT_MOTION_DONE))
+-            {
+-                start_following(CTRL_SPEED_SLOW_CMS);
+-                enter(SYS_LINE_RECOVERY);
+-            }
+-            else if (step_age() >= CTRL_MOTION_TIMEOUT_MS)
+-            {
+-                enter(SYS_FAULT);
+-            }
+-            else
+-            {
+-                /* Turning. */
+-            }
++            run_turn(events);
+         break;
+ 
+         case SYS_LINE_RECOVERY:
+@@ -578,11 +627,23 @@ handle_barcodes (void)
+                 beep(CTRL_TONE_OK_HZ);
+             }
+         }
+-        else if (SUBSYSTEM1_CMD_NONE != cmd)
++        else if ((SUBSYSTEM1_CMD_NONE != cmd) &&
++                 ((SYS_LINE_FOLLOW == g_c.state) ||
++                  (SYS_LINE_RECOVERY == g_c.state)))
+         {
+             g_c.pending_cmd = cmd;
+             beep(CTRL_TONE_OK_HZ);
+         }
++        else if (SUBSYSTEM1_CMD_NONE != cmd)
++        {
++            /* 21 Nov: read while turning, going round an obstacle, or
++             * stopped.  The arm sweeps across the track lines then, so a
++             * "letter" there is not a barcode on the course - it must not
++             * decide the next junction.  Reported only. */
++#if CTRL_PRINT_EVENTS
++            tm_printf((UB *)"S4: barcode ignored (not following the line)\n");
++#endif
++        }
+         else
+         {
+             /* Not a command: reported only. */
+@@ -847,26 +908,32 @@ start_following (uint8_t speed_cms)
+ static void
+ start_turn_execute (bool b_approach)
+ {
+-    g_junction_mm = odo_mm();
+-    g_junction_mm   = odo_mm();
+     g_c.turn_cmd    = g_c.pending_cmd;
+     g_c.pending_cmd = SUBSYSTEM1_CMD_NONE;
++    g_b_rejoin      = false;
+     enter(SYS_TURN_EXECUTE);
++    turn_mark();
+ 
+ #if CTRL_PRINT_EVENTS
+     tm_printf((UB *)"S4: junction - executing barcode command %d\n",
+               (int)g_c.turn_cmd);
+ #endif
+ 
+-    if (b_approach && (SUBSYSTEM1_CMD_STRAIGHT != g_c.turn_cmd))
++    if (SUBSYSTEM1_CMD_STRAIGHT == g_c.turn_cmd)
++    {
++        /* Straight across: held straight over the crossing bar (both
++         * sensors black there), then ordinary following. */
++        subsystem1_line_hold(true);
++        start_following(CTRL_SPEED_SLOW_CMS);
++        set_step(STEP_TURN_CROSS);
++    }
++    else if (b_approach)
+     {
+-        /* Creep forward by FOLLOWING at the slow speed instead of issuing a
+-         * MOVE: the MOVE finished the instant it started (its DONE event was
+-         * already pending), so the car pivoted on the junction instead of
+-         * waiting for the arm (car log 19:57:40: junction, arm black 2 s
+-         * later, pivot in between).  Following keeps the wheels turning and
+-         * holds the car straight over the junction. */
+-        subsystem1_line_hold(true);   /* dead straight over the junction */
++        /* Creep straight on until the AXLE is on the crossing (the sensors
++         * are ahead of it), by FOLLOWING at the slow speed with the steering
++         * held straight: a MOVE could finish at once on a stale DONE
++         * (car log 19:57:40). */
++        subsystem1_line_hold(true);
+         start_following(CTRL_SPEED_SLOW_CMS);
+         set_step(STEP_TURN_APPROACH);
+     }
+@@ -877,42 +944,222 @@ start_turn_execute (bool b_approach)
+ }
+ 
+ /*!
+- * @brief The movement itself, once the wheels are on the junction.
++ * @brief The turn itself, once the axle is on the crossing: pivot on the
++ *        spot (20 Nov night).  The pivot runs for at most
++ *        CTRL_PIVOT_MAX_DEG; run_turn() stops it earlier on the leading
++ *        track sensor.
+  */
+ static void
+ start_turn_rotate (void)
+ {
+     subsystem1_line_hold(false);
+-    set_step(STEP_TURN_ROTATE);
++    subsystem1_line_bias(0);
++    turn_mark();
++    g_pivot_phase = 0u;
+ 
+-    /* 20 Nov, the owner's rule: at the junction DO NOT pivot.  Lean the
+-     * follower towards the barcode's direction and let it follow the branch
+-     * exactly the way it follows any curve - when the line reappears under a
+-     * sensor the normal steering takes back over.  Nothing to time, nothing
+-     * to count, and the same code path as a bend in the track. */
+     switch (g_c.turn_cmd)
+     {
+         case SUBSYSTEM1_CMD_LEFT:
+-            subsystem1_line_bias(CTRL_BRANCH_LEAN_MM);
++            (void)subsystem2_turn_left(g_b_rejoin ? CTRL_REJOIN_MAX_DEG
++                                                  : CTRL_PIVOT_MAX_DEG);
+         break;
+ 
+         case SUBSYSTEM1_CMD_RIGHT:
+-            subsystem1_line_bias(-CTRL_BRANCH_LEAN_MM);
++            (void)subsystem2_turn_right(g_b_rejoin ? CTRL_REJOIN_MAX_DEG
++                                                   : CTRL_PIVOT_MAX_DEG);
+         break;
+ 
+         case SUBSYSTEM1_CMD_UTURN:
+-            subsystem1_line_bias(CTRL_BRANCH_LEAN_MM);
++            (void)subsystem2_turn_left(CTRL_UTURN_MAX_DEG);
+         break;
+ 
+         case SUBSYSTEM1_CMD_STRAIGHT:
+         default:
+-            subsystem1_line_bias(0);
+-        break;
++            finish_turn("straight");
++            return;
++    }
++
++    set_step(STEP_TURN_ROTATE);
++}
++
++/*!
++ * @brief TURN_EXECUTE, every cycle (20 Nov night).
++ *
++ * APPROACH: creep until the axle is on the crossing.
++ * ROTATE:   pivot.  For the first CTRL_PIVOT_MIN_DEG (UTURN_MIN for a
++ *           U-turn) the sensors are ignored - the trailing sensor swings
++ *           over the straight line there.  Then wait for the LEADING sensor
++ *           (left for a left turn) to go black on the new line, and stop
++ *           when it goes white again (the line is now between the two
++ *           sensors) or the trailing one goes black (turned too far): the
++ *           follower centres the rest.  If S2 reaches the cap first
++ *           (MOTION_DONE), hand over anyway.
++ * CROSS:    straight across, then follow.
++ */
++static void
++run_turn (uint32_t events)
++{
++    bool     b_right = (SUBSYSTEM1_CMD_RIGHT == g_c.turn_cmd);
++    uint32_t min_deg = g_b_rejoin ? CTRL_REJOIN_MIN_DEG
++                     : ((SUBSYSTEM1_CMD_UTURN == g_c.turn_cmd)
++                        ? CTRL_UTURN_MIN_DEG : CTRL_PIVOT_MIN_DEG);
++    uint32_t creep   = g_b_rejoin ? CTRL_REJOIN_CREEP_MM
++                                  : CTRL_JUNCTION_CREEP_MM;
++    uint32_t moved   = turn_edges();
++
++    if (STEP_REJOIN_SEEK == g_c.step)
++    {
++        if (subsystem1_left_black() || subsystem1_right_black())
++        {
++            turn_mark();                /* Creep from the first touch. */
++            set_step(STEP_TURN_APPROACH);
++        }
++        else if ((moved >= motion_mm_to_edges(CTRL_REJOIN_SEEK_MM)) ||
++                 (step_age() >= CTRL_REJOIN_SEEK_MS))
++        {
++#if CTRL_PRINT_EVENTS
++            tm_printf((UB *)"S4: after the obstacle: line not found\n");
++#endif
++            enter(SYS_FAULT);
++        }
++        else
++        {
++            /* Heading back toward the line, held straight. */
++        }
++        return;
+     }
+ 
++    if (STEP_TURN_APPROACH == g_c.step)
++    {
++        if ((moved >= motion_mm_to_edges(creep)) ||
++            (step_age() >= CTRL_JUNCTION_WAIT_MS))
++        {
++            start_turn_rotate();
++        }
++    }
++    else if (STEP_TURN_ROTATE == g_c.step)
++    {
++        bool b_lead  = b_right ? subsystem1_right_black()
++                               : subsystem1_left_black();
++        bool b_trail = b_right ? subsystem1_left_black()
++                               : subsystem1_right_black();
++        bool b_past  = (moved >= motion_mm_to_edges(
++                                     motion_turn_arc_mm(min_deg)));
++
++        /* 20 Nov (car): brake the moment the LEADING sensor touches the
++         * new line.  Waiting for it to cross the line meant braking ~20 deg
++         * later, and a car that coasts then carried on past the branch (a
++         * heavy motor in the simulator went round to 180 deg).  Braked
++         * here, the coast carries the line in between the sensors; if the
++         * car stops short, the leading sensor is on the line and the
++         * follower steers the rest of the way that same direction. */
++        if (!b_past)
++        {
++            /* Still leaving the old line: sensors ignored. */
++        }
++        else if (b_lead || b_trail)
++        {
++            g_pivot_phase = 1u;
++            stop_pivot(b_lead ? "on the line" : "on the line (trailing sensor)");
++            set_step(STEP_TURN_STOP);
++        }
++        else if (0u != (events & EVT_MOTION_DONE))
++        {
++            /* 21 Nov: turned the whole cap and neither sensor saw a line.
++             * Following from here would drive off the track: with the
++             * sensors outside the line, both white looks like "on the
++             * line", so nothing would ever stop it.  Stop instead. */
++#if CTRL_PRINT_EVENTS
++            tm_printf((UB *)"S4: turned %u deg, no line seen - stopped. "
++                      "Check CTRL_JUNCTION_CREEP_MM / MOTION_PIVOT_DUTY\n",
++                      (UINT)(g_b_rejoin ? CTRL_REJOIN_MAX_DEG
++                             : ((SUBSYSTEM1_CMD_UTURN == g_c.turn_cmd)
++                                ? CTRL_UTURN_MAX_DEG : CTRL_PIVOT_MAX_DEG)));
++#endif
++            enter(SYS_FAULT);
++        }
++        else
++        {
++            /* Sweeping toward the new line. */
++        }
++    }
++    else if (STEP_TURN_CROSS == g_c.step)
++    {
++        if (moved >= motion_mm_to_edges(CTRL_CROSS_MM))
++        {
++            finish_turn("across");
++        }
++    }
++    else if (STEP_TURN_STOP == g_c.step)
++    {
++        bool b_quiet = wheels_quiet();
++
++        if ((b_quiet && (step_age() >= CTRL_TURN_STOP_MS)) ||
++            (step_age() >= CTRL_TURN_STOP_MAX_MS))
++        {
++            finish_turn(g_turn_why);
++        }
++    }
++    else
++    {
++        /* No other step in this state. */
++    }
++
++    if ((SYS_TURN_EXECUTE == g_c.state) &&
++        (step_age() >= CTRL_MOTION_TIMEOUT_MS))
++    {
++        enter(SYS_FAULT);
++    }
++}
++
++/*!
++ * @brief After a bypass (20 Nov, straddle layout): head on toward the line
++ *        held straight, creep the axle onto it, then pivot back toward
++ *        the old heading until the line is between the track sensors - the
++ *        junction turn's own steps (run_turn()).
++ *
++ * @param b_line_on_left  The line is on the car's left (bypassed on the
++ *                        right), so the final pivot is to the RIGHT.
++ */
++static void
++start_rejoin (bool b_line_on_left)
++{
++    g_c.turn_cmd = b_line_on_left ? SUBSYSTEM1_CMD_RIGHT
++                                  : SUBSYSTEM1_CMD_LEFT;
++    g_b_rejoin   = true;
++    enter(SYS_TURN_EXECUTE);
++    turn_mark();
++    subsystem1_line_hold(true);
++    subsystem1_line_bias(0);
+     start_following(CTRL_SPEED_SLOW_CMS);
++    set_step(STEP_REJOIN_SEEK);
+ 
+-    set_step(STEP_TURN_ROTATE);
++#if CTRL_PRINT_EVENTS
++    tm_printf((UB *)"S4: after the obstacle: heading back to the line "
++              "(on the %s)\n", b_line_on_left ? "left" : "right");
++#endif
++}
++
++/*!
++ * @brief Turn done: back to ordinary line following (20 Nov night).  Was
++ *        a SETTLE step that only a MOTION_DONE could end - following never
++ *        sends one, so every barcode turn ended in FAULT 8 s later.
++ */
++static void
++finish_turn (char const * p_why)
++{
++    g_b_rejoin = false;
++    subsystem1_line_hold(false);
++    subsystem1_line_bias(0);
++    start_following(g_c.speed_cms);
++    enter(SYS_LINE_FOLLOW);
++
++#if CTRL_PRINT_EVENTS
++    tm_printf((UB *)"S4: turn done (%s) after %u encoder edges\n", p_why,
++              (UINT)turn_edges());
++#else
++    (void)p_why;
++#endif
+ }
+ 
+ /*!
+@@ -988,9 +1235,19 @@ handle_avoid_requests (void)
+         }
+         else if ((AVOID_MSG_DONE_OK == type) && b_avoiding)
+         {
++            bool b_line_left = false;
++
+             answer_avoid(true);
+-            start_following(g_c.speed_cms);
+-            enter(SYS_LINE_FOLLOW);
++
++            if (scan_task_take_rejoin(&b_line_left))
++            {
++                start_rejoin(b_line_left);  /* After a bypass (20 Nov). */
++            }
++            else
++            {
++                start_following(g_c.speed_cms);   /* False alarm etc. */
++                enter(SYS_LINE_FOLLOW);
++            }
+         }
+         else if ((AVOID_MSG_DONE_FAIL == type) && b_avoiding)
+         {
+diff --git a/app_program/subsystem4/scan_task.c b/app_program/subsystem4/scan_task.c
+index 551af69..ba7ab37 100644
+--- a/app_program/subsystem4/scan_task.c
++++ b/app_program/subsystem4/scan_task.c
+@@ -68,6 +68,11 @@ static B5_Interfaces_t const g_io =
+     io_line_hint
+ };
+ 
++/* 20 Nov: set by the engine's line hint just before it hands back after a
++ * bypass; TSK_CTRL takes it on DONE_OK and rejoins the line itself. */
++static volatile bool g_b_rejoin       = false;
++static volatile bool g_b_rejoin_left  = false;
++
+ /* 18 Nov: subsystem1_line_seen_count() when the last move or turn began. */
+ static uint32_t g_seen_at_move = 0u;
+ 
+@@ -160,6 +165,24 @@ scan_task_next_request (uint8_t * p_type, uint16_t * p_cmd)
+     return (b_got);
+ }
+ 
++/*!
++ * @brief TSK_CTRL: after a bypass, which side of the car the line is on
++ *        (20 Nov).  True once per bypass.
++ */
++bool
++scan_task_take_rejoin (bool * p_b_line_on_left)
++{
++    bool b_got = g_b_rejoin;
++
++    if (b_got)
++    {
++        *p_b_line_on_left = g_b_rejoin_left;
++        g_b_rejoin        = false;
++    }
++
++    return (b_got);
++}
++
+ /*!
+  * @brief TSK_CTRL: answer the request TSK_SCAN is waiting on.
+  */
+@@ -284,6 +307,8 @@ io_line_detected (void)
+ static void
+ io_line_hint (bool b_line_on_left)
+ {
++    g_b_rejoin_left = b_line_on_left;
++    g_b_rejoin      = true;     /* Read by TSK_CTRL on DONE_OK. */
+     subsystem1_line_hint(b_line_on_left ? (int8_t)S1_LINE_ERR_MAX_MM
+                                         : (int8_t)(-S1_LINE_ERR_MAX_MM));
+ }
+@@ -291,6 +316,8 @@ io_line_hint (bool b_line_on_left)
+ static bool
+ io_take_control (void)
+ {
++    g_b_rejoin = false;     /* 21 Nov: a new obstacle; no stale rejoin. */
++
+     return (ask(AVOID_MSG_TAKE, 0u, AVOID_WAIT_SHORT_MS));
+ }
+ 
+diff --git a/app_program/subsystem4/scan_task.h b/app_program/subsystem4/scan_task.h
+index d8a14fe..7581aad 100644
+--- a/app_program/subsystem4/scan_task.h
++++ b/app_program/subsystem4/scan_task.h
+@@ -27,6 +27,7 @@ uint16_t scan_task_b5_status(void);
+ /* TSK_CTRL side of the hand-over. */
+ bool     scan_task_next_request(uint8_t * p_type, uint16_t * p_cmd);
+ void     scan_task_answer(bool b_yes);
++bool     scan_task_take_rejoin(bool * p_b_line_on_left);
+ 
+ #endif /* SCAN_TASK_H */
+ 
+diff --git a/testing/subsystem1/TEST_LOG.md b/testing/subsystem1/TEST_LOG.md
+index 4dc81a6..c55d972 100644
+--- a/testing/subsystem1/TEST_LOG.md
++++ b/testing/subsystem1/TEST_LOG.md
+@@ -20,9 +20,9 @@ Define a test here before running it. Test IDs never change.
+ | S1-U06 | \*A\* read backwards decodes as A, reversed bit set | Bidirectional decoding | auto | `subsystem1_test.c` | `[TEST] S1-U06 PASS` |
+ | S1-U07 | Damaged barcode is rejected | No false commands | auto | `subsystem1_test.c` | `[TEST] S1-U07 PASS` |
+ | S1-U08 | Decodes while speed changes during the read | Robust at varying speeds | auto | `subsystem1_test.c` | `[TEST] S1-U08 PASS` |
+-| S1-U09 | Line error sign: + = steer left; +40 with no line (arm side), −15 with only the right guard (17 Nov ramp) | IF-01 line state | auto | `subsystem1_test.c` | `[TEST] S1-U09 PASS` |
++| S1-U09 | Line error sign, straddle layout (20 Nov): both white 0; left sensor black +15 (steer left); arm alone 0; right sensor black −15; both black 0 + junction | IF-01 line state | auto | `subsystem1_test.c` | `[TEST] S1-U09 PASS` |
+ | S1-U10 | 16-bit line word packs/unpacks −40..+40 and flags | CR1 minimum bits, IF-01 | auto | `subsystem1_test.c` | `[TEST] S1-U10 PASS` |
+-| S1-U11 | LINE_LOST after 300 ms, LINE_FOUND when the line returns | Line lost detection | auto | `subsystem1_test.c` | `[TEST] S1-U11 PASS` |
++| S1-U11 | Straddle layout (20 Nov): both track sensors white for 320 ms stays valid, no LINE_LOST (was: LINE_LOST after 300 ms — the straddle layout cannot see a lost line) | No false recovery sweep | auto | `subsystem1_test.c` | `[TEST] S1-U11 PASS` |
+ | S1-U12 | Raw readings on white floor and black line | Sensor integration | manual | 1. Flash the normal image and let the start-up finish (state IDLE or FAULT: the car then stays still). 2. Hold the car level with all three sensors at their mounted height (2–3 mm) over the white floor, then over the black line, 4 s each. 3. Read `IR <left> <centre> <right>` (raw ADC 0–4095) in the `S5: up …` line, printed every 2 s. | Black and white differ by > 400 counts on every sensor |
+ | S1-U13 | Calibration sweep | Sensor calibration | manual | Normal image, car on the line, battery on, press RUN/RESET: the start-up spin calls `subsystem1_calibrate_begin()`/`_end()`. | Console `S4: calibration IR ok (black-white span L … C … R …, 400 needed)`, every span > 400 |
+ | S1-U14 | Real barcodes A, B, C, D on the track, both directions | Barcode decoding | manual | Push the car over each printed barcode by hand (slow) and at driving speed, both directions. Console prints `S1: barcode 'A'` etc. | 10/10 correct per barcode, no wrong character |

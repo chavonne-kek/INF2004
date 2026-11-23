@@ -113,6 +113,14 @@
 #define IMU_LIFT_SAMPLES	5u	/* held for 50 ms                     */
 #define IMU_GDIR_DIV		32	/* gravity direction, tau = 0.32 s    */
 #define IMU_LIFT_SETTLE		100u	/* 1 s to learn |g| after (re)arming  */
+
+/* A hump is not a lift.  Dropping off the far edge and landing is a
+   few-sample upward impact that the integrator reads as the chassis
+   being picked up; this many samples of FLAT terrain must pass before
+   the lift rule may fire again (1 s at 100 Hz).  The hump watchdog
+   (IMU_HUMP_MAX_SAMPLES) already bounds how long this can hide a real
+   lift. */
+#define IMU_LIFT_HUMP_GUARD	100u
 #define IMU_OVERTURN_PCT	50	/* up < 50 % of |g|: tilt > 60 deg    */
 #define IMU_OVERTURN_SAMPLES	20u	/* 200 ms                             */
 #define IMU_AXIS_LIMIT_MG	8000	/* inputs clamped before squaring      */
@@ -148,6 +156,11 @@
 /* A hump can only be entered while the robot is actually moving. */
 #define IMU_HUMP_MIN_SPEED	10u	/* mm/s (Nov 2026: was 30, the demo
 					   follows at 30 and recovers at 20) */
+/* Encoder-derived acceleration above which the pitch is treated as an
+   artefact of the car's own jolt (a pivot, a creep into a junction) and
+   the hump state machine is not updated.  80 mg ~ 0.8 m/s^2; a hump
+   crossed at cruise changes speed far more slowly than that. */
+#define IMU_HUMP_JOLT_MG	80
 
 /* Hump states: 3 bits in the telemetry record. */
 #define IMU_HUMP_IDLE		0u

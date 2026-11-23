@@ -1,5 +1,8 @@
 # Testing
 
+**Start here: [`TEST_SUMMARY.md`](TEST_SUMMARY.md)** — counts, latest results, and links to
+[`USE_CASES.md`](USE_CASES.md) and [`TRACEABILITY.md`](TRACEABILITY.md).
+
 All test records for the project live in this folder. A test only counts as
 done when it is **written down here with its result and a saved log**.
 

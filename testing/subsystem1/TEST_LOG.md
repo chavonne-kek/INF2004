@@ -75,3 +75,4 @@ Add a new row for every run. Never edit or delete old rows.
 | 2026-10-26 | H-BC01 … H-LS09 | (not committed yet) | Hao Ming | PASS (21/21) | `logs/2026-10-26_host.txt` | Final code (end-barcode option, timing measurement added). |
 | 2026-10-26 | H-BC01 … H-LS12 | (not committed yet) | Hao Ming | PASS (24/24) | `logs/2026-10-26_final_host.txt` | Right-branch junction added (Week 6 IF-01). |
 | YYYY-MM-DD | S1-U01..11, U16 | `abc1234` | Hao Ming | PASS / FAIL | `logs/YYYY-MM-DD_unit.txt` | First on-target run (`python tools/read_serial.py auto subsystem1`). |
+| 2026-11-23 | H-BC01..12, H-LS01..21 | v94n | PC host run | PASS (28/28) | `logs/2026-11-23_host_v94n.txt` | H-LS02, H-LS21, H-LS03 updated to the 22 Nov FR1 hold (both white after a correction holds it and fades over 40 mm); before the update they failed 3/28 on the old "both white = 0 at once" expectation. Firmware unchanged |

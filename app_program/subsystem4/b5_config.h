@@ -79,7 +79,11 @@
  * what an empty track gives.  Sensitivity is therefore back, and the
  * empty track is rejected by B5_CONFIRM_CLOSE_CM below instead: a real box
  * produces at least one genuinely short reading, an empty floor never does. */
-#define B5_TRIGGER_CM               (25u)
+#define B5_TRIGGER_CM               (20u)   /* 23 Nov: this module reads a
+                                              * steady 24 cm on empty floor
+                                              * for minutes, so 25 armed the
+                                              * watch permanently.  A real box
+                                              * reads 17-18 cm. */
 
 /* 22 Nov: the sonar alternates a real reading with a 1 cm self-echo, so the
  * confirmation has to tolerate misses.  6 reads, 3 in band = a real box. */
@@ -96,6 +100,20 @@
  * whatever the count says. */
 #define B5_CONFIRM_CLOSE_CM         (18u)
 #define B5_TRIGGER_CONFIRM          (3u)     /* consecutive hits to trigger (17 Nov night: 2 -> 3) */
+/* 23 Nov car, measured on the bench: with nothing in front the module
+ * answers a steady 24 cm; with an object about 20 cm away it answers 1-3 cm
+ * (the echo is detected at the end of its own burst - the module cannot
+ * measure this distance at 3.3 V).  So a reading at or under 6 cm is an
+ * OBJECT, not noise: it is the only thing this sonar says about the box. */
+#define B5_NEAR_CM                  (6u)
+
+/* v94h (23 Nov car): 2-3 cm = object still far away, 1 cm = close.  The car
+ * stops only after this many readings of exactly 1 cm in a row, then goes
+ * round the box on the LEFT (B5_STOPGAP_LEFT 1, fixed bypass). */
+/* Leaky count: +1 for a reading of 1 cm, -1 for anything else, fires at
+ * this.  At ~9-10 pings/s that is roughly 1-2 s of mostly-1 readings. */
+#define B5_ONE_CM_COUNT             (3u)
+
 #define B5_SELF_ECHO_CM             (10u)   /* 22 Nov: the module ghosts at 1-7 cm
                                                * (its own burst plus the floor); the
                                                * box now reads 17, so 10 removes the
@@ -119,6 +137,12 @@
 
 /* ---- Planning ---------------------------------------------------------- */
 #define B5_STOP_DIST_CM             (8u)     /* too close: back off first */
+/* 23 Nov car: the bypass checks the sonar before every 5 cm step and used to
+ * abort below B5_STOP_DIST_CM.  This module reports 1 cm wherever it points,
+ * so the first step after the 45 deg turn aborted and the car stopped beside
+ * the box.  The guard is off: the bypass is a fixed shape and the box
+ * position is known.  Turn back on with a sensor that measures. */
+#define B5_BYPASS_SONAR_GUARD       (0)
 #define B5_MAX_SHIFT_CM             (40u)    /* never leave track by more */
 /* 22 Nov car: with an unreliable sonar the scan has reported a 30-40 cm box
  * as 1-4 cm, and the planner then asked for almost no sideways shift - the
@@ -147,15 +171,46 @@
  * box); it replaces stages 2-4, which are the ones being marked.  The sonar
  * now measures properly (17 cm steady at the box), so coarse -> fine ->
  * profile -> plan -> recover runs on real numbers again. */
-#define B5_FIXED_BYPASS             (0u)
+/* v94 (23 Nov): back to the fixed path.  Static test on the car: the 13 cm
+ * box at 20 cm reads 3 cm, close up 1 cm, empty track 24 cm - the scan
+ * cannot see the box, so the go-round cannot be planned from it.  The
+ * stopgap below detects the box from the short readings instead. */
+#define B5_FIXED_BYPASS             (1u)
+
+/* v94 STOPGAP (b5_task.c StateIdle): B5_STOPGAP_CONFIRM readings in a row
+ * of B5_STOPGAP_SHORT_CM or less = box ahead; confirmed while stopped by
+ * B5_STOPGAP_CONFIRM_READS of the 8 confirm reads; then the fixed bypass on
+ * the B5_STOPGAP_LEFT side (1 = go round on the left, 0 = right).  Width is
+ * not measured on this path.  Set B5_STOPGAP_SHORT to 0 once the sonar is
+ * on 5 V (or a 3.3 V module) and reads real distances. */
+/* 23 Nov: OFF.  On this car the module reports 1-2 cm constantly (its own
+ * burst), and the stopgap counts every reading <= 5 cm as a box, so the car
+ * stopped for an obstacle in the middle of a barcode with nothing ahead.
+ * With this off, confirmation needs 2 of 8 readings inside 11..20 cm AND at
+ * least one at or below 18 cm - which the phantom (1-2 and 19-24 cm) never
+ * satisfies, while a real box at 17-18 does. */
+#define B5_STOPGAP_SHORT            (1)
+#define B5_STOPGAP_SHORT_CM         (6u)
+#define B5_STOPGAP_CONFIRM          (3u)
+#define B5_STOPGAP_CONFIRM_READS    (3u)
+#ifndef B5_STOPGAP_LEFT
+#define B5_STOPGAP_LEFT             (1)     /* v94h: always go round on the LEFT */
+#endif
 #define B5_FIXED_OUT_DEG            (45u)   /* 22 Nov car: 30 deg needed a
                                                * long diagonal (30 cm forward
                                                * for 17 cm sideways), so the
                                                * car was past the box before
                                                * it straightened           */
-#define B5_FIXED_OUT_CM             (26u)   /* 26 cm at 45 deg = 18 cm out
+/* 23 Nov car, small test track:
+ *   45 deg out, 20 cm, 45 deg back to parallel, 20 cm past the box,
+ *   45 deg toward the line, 20 cm, 45 deg square up (left), then rotate
+ *   on the spot looking for black. */
+#define B5_FIXED_RETURN_CM          (20u)
+#define B5_FIXED_SWEEP_DEG          (90u)
+
+#define B5_FIXED_OUT_CM             (20u)   /* 26 cm at 45 deg = 18 cm out
                                                * and 18 cm forward */
-#define B5_FIXED_PASS_CM            (28u)   /* 22 Nov car: 40 overshot the box by
+#define B5_FIXED_PASS_CM            (20u)   /* 22 Nov car: 40 overshot the box by
                                                * 15-20 cm                              */
 #define B5_FIXED_RETURN_STEP_DEG    (4u)    /* 22 Nov car: 5 deg steps left the
                                                * car badly angled when a sensor

@@ -81,6 +81,7 @@ typedef struct {
 	int16_t		up_pct;		/* up axis as % of |a|            */
 	uint8_t		settle;		/* samples since (re)arming       */
 	uint8_t		lift_cnt;	/* consecutive samples over v     */
+	uint8_t		lift_guard;	/* FLAT samples owed after a hump */
 	uint8_t		flip_cnt;	/* consecutive overturned samples */
 	uint8_t		lift_cause;	/* IMU_LIFT_*                     */
 
@@ -110,6 +111,15 @@ static IMU_STATE st;
 
 static int32_t  rl_avg_q8;      /* roll, cdeg x 256, averaged    */
 static int32_t  rl_base_q8;     /* floor baseline, same units   */
+
+/* Standing tilt, learned once per run: the pitch the module reads with
+ * the car level and stopped.  A 2 deg mounting tilt otherwise makes every
+ * straight read as the first sample of a hump (IMU_HUMP_ENTER_CDEG is
+ * 3 deg), and it biases the height integral by that angle. */
+static int16_t  pitch_base_cdeg;
+static int32_t  pitch_learn_sum;
+static uint8_t  pitch_learn_n;
+static uint16_t pitch_learn_clock;
 static int16_t  rl_peak_cdeg;   /* peak deviation of this bump  */
 static int32_t  rl_peak_sin;    /* its sine, Q15                */
 static uint8_t  rl_enter;
@@ -219,6 +229,10 @@ void imu_init(void)
 	st.ay_slow = 0;
 	st.sin_pitch_q15 = 0;
 	st.pitch_cdeg = 0;
+	pitch_base_cdeg = 0;
+	pitch_learn_sum = 0;
+	pitch_learn_n = 0u;
+	pitch_learn_clock = 0u;
 	st.roll_cdeg = 0;
 
 	st.hump_state = IMU_HUMP_IDLE;
@@ -245,6 +259,7 @@ void imu_init(void)
 	st.up_pct = 100;
 	st.settle = 0;
 	st.lift_cnt = 0;
+	st.lift_guard = 0u;
 	st.flip_cnt = 0;
 	st.lift_cause = IMU_LIFT_NONE;
 
@@ -281,8 +296,16 @@ void imu_clear(uint8_t flag_mask)
 		st.v_thr_ums = IMU_LIFT_VEL_UMS;
 		st.settle = 0;
 		st.lift_cnt = 0;
+		st.lift_guard = 0u;
 		st.flip_cnt = 0;
 		st.lift_cause = IMU_LIFT_NONE;
+
+		/* A new run stands on the start line: learn the standing tilt
+		   again rather than reusing one measured on a slope. */
+		pitch_base_cdeg = 0;
+		pitch_learn_sum = 0;
+		pitch_learn_n = 0u;
+		pitch_learn_clock = 0u;
 	}
 }
 
@@ -304,6 +327,15 @@ static void hump_step(int32_t sin_q15, uint32_t dd_um, uint8_t inhibit,
 {
 	int32_t	contrib_um;
 	int32_t	hint;
+	int32_t	p_q15;
+	int16_t	pitch;
+
+	/* Terrain, not mounting: take the standing tilt out of both the
+	   threshold test and the height integral, so a module fitted 2 deg
+	   nose-up still reads a flat floor as flat.  5729 ~= 18000/pi, so
+	   cdeg * 32768/5729 is sin() for the small angles involved. */
+	p_q15 = sin_q15 - ((int32_t)pitch_base_cdeg * 32768) / 5729;
+	pitch = (int16_t)(st.pitch_cdeg - pitch_base_cdeg);
 
 	/* Lifted or overturned: the pitch no longer describes the track,
 	   so any hump in progress is abandoned rather than reported wrong. */
@@ -316,12 +348,12 @@ static void hump_step(int32_t sin_q15, uint32_t dd_um, uint8_t inhibit,
 		return;
 	}
 
-	contrib_um = (sin_q15 * (int32_t)dd_um) / 32768;
+	contrib_um = (p_q15 * (int32_t)dd_um) / 32768;
 
 	switch (st.hump_state) {
 	case IMU_HUMP_IDLE:
 		if ((may_start != 0u) &&
-		    (st.pitch_cdeg >= (int16_t)IMU_HUMP_ENTER_CDEG)) {
+		    (pitch >= (int16_t)IMU_HUMP_ENTER_CDEG)) {
 			if (st.hump_enter_cnt < 255u) {
 				st.hump_enter_cnt++;
 			}
@@ -348,17 +380,17 @@ static void hump_step(int32_t sin_q15, uint32_t dd_um, uint8_t inhibit,
 		}
 
 		/* Crest: pitch crosses zero going down. */
-		if ((st.hump_state == IMU_HUMP_RISING) && (st.pitch_cdeg <= 0)) {
+		if ((st.hump_state == IMU_HUMP_RISING) && (pitch <= 0)) {
 			st.hump_state = IMU_HUMP_FALLING;
 		}
 		/* A second rise inside one hump keeps accumulating. */
 		if ((st.hump_state == IMU_HUMP_FALLING) &&
-		    (st.pitch_cdeg >= (int16_t)IMU_HUMP_ENTER_CDEG)) {
+		    (pitch >= (int16_t)IMU_HUMP_ENTER_CDEG)) {
 			st.hump_state = IMU_HUMP_RISING;
 		}
 
 		/* Exit: back near level for 5 samples, or the 4 s guard. */
-		hint = iabs32((int32_t)st.pitch_cdeg);
+		hint = iabs32((int32_t)pitch);
 		if (hint < (int32_t)IMU_HUMP_EXIT_CDEG) {
 			if (st.hump_exit_cnt < 255u) {
 				st.hump_exit_cnt++;
@@ -495,6 +527,22 @@ static void lift_step(const IMU_SAMPLE *s)
 		return;			/* learning g: not armed yet */
 	}
 
+	/* Terrain guard: while the robot is on a hump, and for
+	   IMU_LIFT_HUMP_GUARD samples after it comes back level, keep the
+	   integrator at zero.  Without this the landing at the foot of the
+	   far slope accumulates ~150 mm/s of upward speed over 50 ms and
+	   latches LIFTED - which ends the run with a FAULT in the middle of
+	   a hump the car had actually crossed. */
+	if (st.hump_state != (uint8_t)IMU_HUMP_IDLE) {
+		st.lift_guard = (uint8_t)IMU_LIFT_HUMP_GUARD;
+	}
+	if (st.lift_guard > 0u) {
+		st.lift_guard--;
+		st.v_up_ums = 0;
+		st.lift_cnt = 0u;
+		return;
+	}
+
 	/* Upward speed: clamp (a knock lasts 1-2 samples), integrate, leak. */
 	a_up = clamp32(a_par - st.g_ref, -IMU_LIFT_CLAMP_MG, IMU_LIFT_CLAMP_MG);
 	st.v_up_ums += a_up * IMU_LIFT_UMS_PER_MG;
@@ -615,6 +663,20 @@ void imu_update(const IMU_SAMPLE *s)
 	st.sin_pitch_q15 = sin_q15;
 	st.pitch_cdeg = asin_cdeg(sin_q15);
 
+	/* Standing tilt, learned once per run: 100 samples stopped within
+	   the first 3 s.  Gated on speed so a stop on a hump slope cannot be
+	   learned as level, and abandoned (base stays 0) if the run starts
+	   moving straight away. */
+	if (pitch_learn_clock < 300u) {
+		pitch_learn_clock++;
+		if ((pitch_learn_n < 100u) &&
+		    (s->speed_mmps < (uint16_t)IMU_HUMP_MIN_SPEED)) {
+			pitch_learn_sum += st.pitch_cdeg;
+			pitch_learn_n++;
+			pitch_base_cdeg = (int16_t)(pitch_learn_sum / (int32_t)pitch_learn_n);
+		}
+	}
+
 	/* Roll is informational; lateral acceleration corrupts it the same
 	   way, so no decision in the car depends on roll. */
 	st.roll_cdeg = asin_cdeg((-clamp32(st.ay_slow, -1000, 1000) * 32768) / 1000);
@@ -638,7 +700,20 @@ void imu_update(const IMU_SAMPLE *s)
 	inhibit = ((st.flags & (uint8_t)IMU_FLAG_LIFTED) != 0u) ? 1u : 0u;
 	may_start = ((have_odom != 0u) &&
 		     (s->speed_mmps >= (uint16_t)IMU_HUMP_MIN_SPEED)) ? 1u : 0u;
-	hump_step(sin_q15, s->dd_um, inhibit, may_start);
+	/* A jolt is not terrain.  There is no gyroscope: pitch comes from
+	 * the accelerometer, so the kick of a pivot or the creep into a
+	 * junction reads as several degrees of slope (car log 23 Nov 14:49:
+	 * pitch 8.5 deg and hump CLIMBING on a flat junction, right where the
+	 * wheels went from 20 to 240 mm/s).  While the encoders report a hard
+	 * change of speed the pitch is not describing the track, so the hump
+	 * state machine holds its state and its integral instead of being fed
+	 * the artefact. */
+	if (iabs32(s->a_enc_mg) <= (int32_t)IMU_HUMP_JOLT_MG) {
+		hump_step(sin_q15, s->dd_um, inhibit, may_start);
+	}
+	else if (inhibit != 0u) {
+		hump_step(sin_q15, s->dd_um, inhibit, may_start);
+	}
 
 	motion_step(s, have_odom);
 

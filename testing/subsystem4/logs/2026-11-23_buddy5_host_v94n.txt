@@ -1,0 +1,25 @@
+# subsystem4/buddy5_host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+./b5_host_test
+centred, open both sides
+  detected=1 centre=90 closest=35cm@85 width=9 left=255 right=255 -> TURN_LEFT shift=25
+wall on right
+  detected=1 centre=90 closest=35cm@85 width=9 left=255 right=18 -> TURN_LEFT shift=25
+wall on left
+  detected=1 centre=90 closest=35cm@85 width=9 left=18 right=255 -> TURN_RIGHT shift=25
+off path to the right
+  detected=0 centre=0 closest=0cm@0 width=0 left=0 right=0 -> CONTINUE shift=0
+boxed in, retries left
+  detected=1 centre=90 closest=35cm@85 width=9 left=6 right=6 -> REVERSE shift=0
+boxed in, retries exhausted
+  detected=1 centre=90 closest=35cm@85 width=9 left=6 right=6 -> STOP shift=0
+too close
+  detected=1 centre=90 closest=7cm@70 width=13 left=255 right=255 -> REVERSE shift=0
+empty
+  detected=0 centre=0 closest=0cm@0 width=0 left=0 right=0 -> CONTINUE shift=0
+slightly right of centre
+  detected=1 centre=82 closest=35cm@85 width=12 left=255 right=255 -> TURN_LEFT shift=12
+bit packing round trip
+shared status word
+
+ALL PASSED (0 failures)
+exit=0

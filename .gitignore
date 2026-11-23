@@ -40,6 +40,13 @@ tools/sim/package-lock.json
 tools/sim/last_run.log
 tools/sim/profile.json
 
+# Firmware images with the hotspot password compiled in
+firmware/mqtt_contains_hotspot_password/
+
+# Telemetry logs from dashboard runs (dashboard/start_dashboard.py)
+dashboard/run_*.csv
+dashboard/_run/
+
 # Python caches (tools/ run from the repo)
 __pycache__/
 *.pyc

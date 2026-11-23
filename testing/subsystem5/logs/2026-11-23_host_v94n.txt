@@ -1,0 +1,13 @@
+# subsystem5/host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -O1 -I ../../host_common/stubs -I ../../../app_program/subsystem5 -o test_host test_host.c ../../../app_program/subsystem5/comms_codec.c
+./test_host
+        54 of 256 one-byte payloads are valid
+[HOST] H-CO01   PASS  commands: 5 opcodes + SPEED 2..25 + GAIN 1..25, nothing else
+[HOST] H-CO02   PASS  wrong length is malformed
+[HOST] H-CO03   PASS  heartbeat 29 bits, uptime wraps at 4096 s
+[HOST] H-CO04   PASS  offline buffer: 16 newest kept, oldest overwritten
+[HOST] H-CO05   PASS  topic table and event sizes
+[HOST] H-CO06   PASS  payloads are little-endian
+[HOST] H-CO07   PASS  topic names match the enum order (IR vs comms)
+[HOST] SUMMARY 7 passed, 0 failed
+exit=0

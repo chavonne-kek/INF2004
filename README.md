@@ -1,3 +1,20 @@
+# IS25 — INF2004 autonomous robot car (Pico W, micro T-Kernel 3.0)
+
+Team IS25: Chavonne (S5 WiFi/MQTT), Kai Xuan (S2 motion), Hao Ming (S1 line + barcode),
+Zi Siang (S3 IMU), Soma (S4 ultrasonic + controller). Final version: **v94n (23 Nov 2026)**.
+
+| Start here | |
+|---|---|
+| Project overview, tasks, interfaces | [`IS25_README.md`](IS25_README.md), [`TEAM.md`](TEAM.md) |
+| Build and flash | [`FLASHING_GUIDE.md`](FLASHING_GUIDE.md) (WiFi: copy `config/wifi_secrets.example.h` to `config/wifi_secrets.h`) |
+| Tests, use cases, traceability | [`testing/TEST_SUMMARY.md`](testing/TEST_SUMMARY.md) |
+| Latest changes | [`CHANGES_v94n.md`](CHANGES_v94n.md), [`CHANGES_23nov.md`](CHANGES_23nov.md) |
+| Dashboard | [`dashboard/DEMO_DASHBOARD.md`](dashboard/DEMO_DASHBOARD.md) |
+
+The rest of this file is the course's micro T-Kernel set-up guide, kept for reference.
+
+---
+
 # micro T-Kernel 3.0 project for Raspberry Pi Pico W
 
 A starting point for your project: micro T-Kernel 3.0 running on **both cores**

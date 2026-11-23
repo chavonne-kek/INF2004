@@ -1,0 +1,52 @@
+# subsystem3/host - make run, 2026-11-23, v94n source, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cc -std=c99 -Wall -Wextra -O1 -D_DEFAULT_SOURCE -I ../../host_common/stubs -I ../../../app_program/subsystem3 -o test_host test_host.c ../../../app_program/subsystem3/imu.c ../../../app_program/subsystem3/imu_glue.c ../../../app_program/subsystem3/imu_math.c -lm
+./test_host
+        max error: atan2 0.086 deg, asin 0.086 deg, sqrt 1.1e-07
+[HOST] H-IM01   PASS  atan2/asin within 0.1 deg, sqrt within 1e-4
+        20 mm hump at 120 mm/s -> 19 mm
+        20 mm hump at 150 mm/s -> 19 mm
+        20 mm hump at 200 mm/s -> 19 mm
+        40 mm hump at 120 mm/s -> 39 mm
+        40 mm hump at 150 mm/s -> 39 mm
+        40 mm hump at 200 mm/s -> 39 mm
+        55 mm hump at 120 mm/s -> 54 mm
+        55 mm hump at 150 mm/s -> 54 mm
+        55 mm hump at 200 mm/s -> 54 mm
+[HOST] H-IM02   PASS  hump height within +-15% (NFR9), start/end edges, no false lift
+        two humps -> last 19 mm, max 48 mm
+[HOST] H-IM03   PASS  run maximum kept, last hump reported
+[HOST] H-IM04   PASS  braking on flat ground: no hump, no lift
+        lift 0.2 g for 0.3 s, wheels turning: event after 110 ms
+[HOST] H-IM22   PASS  lifted by hand -> LIFTED within 0.3 s, wheels still turning
+        gentle lift 0.1 g for 0.4 s, nose tipped 30 deg: event after 230 ms
+[HOST] H-IM23   PASS  gentle lift with a 30 deg tip -> LIFTED
+[HOST] H-IM24   PASS  20 ms knocks of 1.5 g every 0.3 s are not a lift
+[HOST] H-IM09   PASS  status word round trip; pitch saturates at +-32 deg
+[HOST] H-IM10   PASS  heading 0..359
+        10 deg nose up: glue +10.25 deg, raw -10.35 deg
+[HOST] H-IM12   PASS  nose up = + pitch through the glue (raw sign inverted)
+        1.0 m/s^2 launch: pitch -2.00..+2.00 deg
+[HOST] H-IM13   PASS  acceleration compensated: |pitch| < 3 deg, no hump
+[HOST] H-IM25   PASS  on its side 0.3 s -> OVERTURNED; 0.15 s wobble ignored
+[HOST] H-IM19   PASS  25 deg climb is not a lift; upside-down module: upright ok, rolled over -> OVERTURNED
+[HOST] H-IM20   PASS  LIFTED latched 3 s, re-armed, second lift detected
+        2.5 m/s^2 launch: pitch -6.50..+6.50 deg, start no
+[HOST] H-IM17   PASS  hard launch: ACCELERATING, no hump report, no lift
+[HOST] H-IM14   PASS  10 deg wedge for 7 s at 10..25 cm/s: no hump report
+[HOST] H-IM15   PASS  motion classes: cruising, turning, decelerating, stopped
+[HOST] H-IM16   PASS  60 s of 50 mg noise at 15 cm/s: no hump, no lift
+        20 mm at 12 deg,  20 mm/s -> 19 mm
+        20 mm at 12 deg,  70 mm/s -> 20 mm
+        20 mm at 12 deg, 120 mm/s -> 19 mm
+        50 mm at 12 deg,  20 mm/s -> 49 mm
+        50 mm at 12 deg,  70 mm/s -> 49 mm
+        50 mm at 12 deg, 120 mm/s -> 48 mm
+        20 mm at 20 deg,  20 mm/s -> 19 mm
+        20 mm at 20 deg,  70 mm/s -> 19 mm
+        20 mm at 20 deg, 120 mm/s -> 19 mm
+        50 mm at 20 deg,  20 mm/s -> 50 mm
+        50 mm at 20 deg,  70 mm/s -> 49 mm
+        50 mm at 20 deg, 120 mm/s -> 48 mm
+[HOST] H-IM21   PASS  humps 20-50 mm, 12-20 deg, 2-12 cm/s, noisy: within +-15%, never LIFTED
+[HOST] SUMMARY 19 passed, 0 failed
+exit=0

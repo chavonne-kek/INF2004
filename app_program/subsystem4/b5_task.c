@@ -91,6 +91,7 @@ static void HandBack(bool success)
 #define B5_REARM_MS     (3000u)
 
 static uint8_t s_hits;                        /* 0..B5_TRIGGER_CONFIRM */
+static uint8_t s_shortHits;                   /* 0..B5_STOPGAP_CONFIRM (v94) */
 static uint8_t s_watch_cm = B5_DIST_NO_ECHO;  /* last front reading, for S5 */
 
 /* 22 Nov: the watch was only ever visible on the USB console.  On a battery
@@ -102,7 +103,7 @@ uint8_t B5_WatchCm(void)
 
 uint8_t B5_WatchHits(void)
 {
-    return (s_hits);
+    return ((s_hits > s_shortHits) ? s_hits : s_shortHits);
 }
 static bool    s_rearmWait;
 static uint32_t s_rearmStartUs;
@@ -117,6 +118,7 @@ static void FalseAlarm(void)
 static void WatchReset(void)
 {
     s_hits       = 0u;
+    s_shortHits  = 0u;
     s_rearmWait  = false;
 }
 
@@ -157,6 +159,10 @@ static B5_State_t StateIdle(void)
     {
         s_hits = 0u;
     }
+    else if (front <= B5_NEAR_CM)
+    {
+        /* v94h: short readings are handled by the "1 cm" rule below. */
+    }
     else if (front <= B5_SELF_ECHO_CM)
     {
         /* No information (own burst): keep the count as it is. */
@@ -175,6 +181,42 @@ static B5_State_t StateIdle(void)
     else if (s_hits > 0u)
     {
         s_hits--;                 /* One miss tolerated near the band. */
+    }
+    else
+    {
+        /* Already zero. */
+    }
+
+    /* v94 STOPGAP (23 Nov car, static test, HC-SR04 on 3.3 V): empty track
+     * reads a steady 24 cm, the 13 cm box at 20 cm reads 3 cm, right in
+     * front 1 cm - the module never reports the box's real distance.  A run
+     * of B5_STOPGAP_CONFIRM readings of B5_STOPGAP_SHORT_CM or less in a row
+     * is therefore taken as "box ahead".  Any other reading restarts the
+     * count, so the 1 cm / 24 cm alternation seen on 21-22 Nov cannot fire
+     * it.  Cost: a sensor stuck at 1-2 cm while driving looks the same. */
+    /* v94h (23 Nov car, team decision): this module answers 2-3 cm for an
+     * object that is still far away and 1 cm only when it is close.  Stop
+     * only after B5_ONE_CM_COUNT readings of exactly 1 cm IN A ROW; any
+     * other reading restarts the count.  (~0.12 s per reading, so 20 in a
+     * row is ~2.4 s, ~7 cm of travel at 3 cm/s.) */
+    if (s_rearmWait)
+    {
+        s_shortHits = 0u;
+    }
+    else if (1u == front)
+    {
+        if (s_shortHits < 0xFFu)
+        {
+            s_shortHits++;
+        }
+    }
+    else if (s_shortHits > 0u)
+    {
+        /* Leaky counter, not a strict run.  This module alternates a 1 with
+         * a 2, 3 or 24 on roughly one ping in two, and the log only shows
+         * every other ping - a strict run resets invisibly and never fires.
+         * One wrong reading now costs one step instead of the whole count. */
+        s_shortHits--;
     }
     else
     {
@@ -201,12 +243,17 @@ static B5_State_t StateIdle(void)
                    (unsigned)(s_rearmWait ? 1u : 0u));
         }
     }
-    if (s_hits < B5_TRIGGER_CONFIRM)
+    /* v94h: only the 1 cm rule stops the car (the 11-20 cm band read
+     * phantoms on this module). */
+    if (s_shortHits < B5_ONE_CM_COUNT)
     {
         B5_Port_DelayMs(B5_CRUISE_PERIOD_MS);
         return B5_STATE_IDLE;
     }
-    s_hits = 0u;
+    B5_LOG("S4: watch fired (%u readings of 1 cm in a row)\n",
+           (unsigned)s_shortHits);
+    s_hits      = 0u;
+    s_shortHits = 0u;
     if (!s_io->takeControl())                  /* IS25: TSK_CTRL stops the car */
     {
         B5_Port_DelayMs(B5_CRUISE_PERIOD_MS);  /* refused: keep watching */
@@ -219,6 +266,7 @@ static B5_State_t StateIdle(void)
      * clear, there was never an obstacle. */
     {
         uint8_t confirm = 0u;
+        uint8_t shorts  = 0u;               /* v94 stopgap */
         uint8_t closest = 0xFFu;
         uint8_t reads[B5_CONFIRM_READS];
         uint8_t i;
@@ -229,6 +277,10 @@ static B5_State_t StateIdle(void)
             uint8_t d = B5_Sonar_MeasureCm();
 
             reads[i] = d;
+            if ((d >= 1u) && (d <= B5_STOPGAP_SHORT_CM))
+            {
+                shorts++;
+            }
             if ((d > B5_SELF_ECHO_CM) && (d <= B5_TRIGGER_CM))
             {
                 confirm++;
@@ -253,6 +305,25 @@ static B5_State_t StateIdle(void)
         {
             confirm = 0u;
         }
+#if B5_STOPGAP_SHORT
+        /* v94 stopgap: the box is confirmed by short readings while
+         * stopped.  The scan cannot measure it (every reading of it is
+         * 1-3 cm), so no width is published and the car goes straight to
+         * the fixed bypass on the B5_STOPGAP_LEFT side. */
+        if ((confirm < B5_CONFIRM_HITS) &&
+            (shorts >= B5_STOPGAP_CONFIRM_READS))
+        {
+            s_lastSide  = B5_STOPGAP_LEFT ? B5_SIDE_LEFT : B5_SIDE_RIGHT;
+            s_plan.shiftCm = 0u;
+            B5_Status_SetObstacle(true);
+            B5_LOG("S4: obstacle (stopgap): %u of %u reads <= %u cm, "
+                   "width not measurable, fixed bypass on the %s\n",
+                   (unsigned)shorts, (unsigned)B5_CONFIRM_READS,
+                   (unsigned)B5_STOPGAP_SHORT_CM,
+                   B5_STOPGAP_LEFT ? "LEFT" : "RIGHT");
+            return B5_STATE_BYPASS;
+        }
+#endif
         if (confirm < B5_CONFIRM_HITS)
         {
             B5_LOG("S4: false alarm (front clear while stopped): "

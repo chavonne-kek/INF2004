@@ -38,3 +38,6 @@ Add a new row for every run. Never edit or delete old rows.
 | 2026-10-26 | RT-01 | (not committed yet) | final code | PASS (2,273 checks) | `logs/2026-10-26_roundtrip.txt` | 200 cases per topic + all 256 command bytes. |
 | 2026-10-26 | D-01 | (not committed yet) | final code | PASS | `logs/2026-10-26_dashboard_live.txt` | amqtt broker on 127.0.0.1, simulated robot; not yet the real robot. |
 | YYYY-MM-DD | S5-U01..04 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_….txt` | First on-target run: owner to fill in. |
+| 2026-11-23 | H-CO01..07 | v94n | PC host run | PASS (7/7) | `logs/2026-11-23_host_v94n.txt` | |
+| 2026-11-23 | Roundtrip selftest | v94n | PC host run | PASS (2532 checks, 0 failed) | `logs/2026-11-23_roundtrip_v94n.txt` | Firmware encoders → dashboard decoder |
+| 2026-11-23 | S5-M01 | v94b MQTT | team + dashboard | PASS | dashboard CSV reviewed 15:51–15:53 (file not kept) | Car online on "The network", broker 10.222.14.184; telemetry ~5 Hz, heartbeat 1 Hz |
