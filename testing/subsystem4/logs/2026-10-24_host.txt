@@ -1,0 +1,20 @@
+[HOST] H-SC01   PASS  echo -> cm, >= 127 cm saturates to 'none'
+[HOST] H-SC02   PASS  5-bit scan index 0..24 = 30..150 deg
+[HOST] H-SC03   PASS  integer square root
+[HOST] H-SC04   PASS  profile 35 bits / scan request 11 bits
+           8 cm wide at 15 cm -> w=  7 closest= 15 edges LR
+           8 cm wide at 20 cm -> w=  6 closest= 20 edges LR
+           8 cm wide at 30 cm -> w= 10 closest= 30 edges LR
+          12 cm wide at 15 cm -> w= 10 closest= 15 edges LR
+          12 cm wide at 20 cm -> w= 10 closest= 20 edges LR
+          12 cm wide at 30 cm -> w= 10 closest= 30 edges LR
+          20 cm wide at 15 cm -> w= 19 closest= 15 edges LR
+          20 cm wide at 20 cm -> w= 17 closest= 20 edges LR
+          20 cm wide at 30 cm -> w= 21 closest= 30 edges LR
+        worst width error 25%
+[HOST] H-SC05   PASS  width within 30% in simulation, both edges, closest +-2 cm
+[HOST] H-SC06   PASS  no right edge -> right blocked (clearance 0), left open
+[HOST] H-SC07   PASS  clear sweep -> 'nothing' (false alarm)
+        with wall: L=62 R=62 w=10
+[HOST] H-SC08   PASS  edges found in front of a background wall
+[HOST] SUMMARY 8 passed, 0 failed

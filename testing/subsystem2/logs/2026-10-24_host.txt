@@ -1,0 +1,13 @@
+[HOST] H-MO01   PASS  motion command: all 8 x 256 values, 11 bits
+[HOST] H-MO02   PASS  odometry word: every speed step round trips
+[HOST] H-MO03   PASS  speeds saturate, never wrap
+[HOST] H-MO04   PASS  distance delta correct across the 15-bit wrap
+        1 m = 195 edges -> 995492 um; 90 deg arc = 94 mm
+[HOST] H-MO05   PASS  edges <-> mm, 90 degree arc = 94 mm (track 120)
+        model: 200 -> 202, 150 with load -> 146, -120 -> -121 mm/s
+[HOST] H-MO06   PASS  PI reaches the set-point within 5% in 1 s, also under load
+[HOST] H-MO07   PASS  acceleration ramp 5 mm/s per 10 ms
+[HOST] H-MO08   PASS  steering sign: + error slows the left wheel
+        with 40-edge encoder: 100 -> 101, 200 -> 201 mm/s
+[HOST] H-MO09   PASS  PI holds speed with coarse encoder feedback (+-10 mm/s)
+[HOST] SUMMARY 9 passed, 0 failed

@@ -1,0 +1,4 @@
+2026-10-26  testing/subsystem5/roundtrip  (make run)  gcc 13, python 3.13.16
+./gen_vectors vectors.jsonl
+python3 ../../../tools/is25_dashboard.py --selftest vectors.jsonl
+dashboard selftest: 2273 checks, 0 failed

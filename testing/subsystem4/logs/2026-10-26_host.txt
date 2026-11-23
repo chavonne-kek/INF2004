@@ -1,0 +1,26 @@
+[HOST] H-SC01   PASS  echo -> cm, >= 127 cm saturates to 'none'
+[HOST] H-SC02   PASS  5-bit scan index 0..24 = 30..150 deg
+[HOST] H-SC03   PASS  telemetry profile 35 bits / 5 bytes round trip
+[HOST] SUMMARY 3 passed, 0 failed
+centred, open both sides
+  detected=1 centre=90 closest=35cm@85 width=9 left=255 right=255 -> TURN_LEFT shift=15
+wall on right
+  detected=1 centre=90 closest=35cm@85 width=9 left=255 right=18 -> TURN_LEFT shift=15
+wall on left
+  detected=1 centre=90 closest=35cm@85 width=9 left=18 right=255 -> TURN_RIGHT shift=15
+off path to the right
+  detected=0 centre=0 closest=0cm@0 width=0 left=0 right=0 -> CONTINUE shift=0
+boxed in, retries left
+  detected=1 centre=90 closest=35cm@85 width=9 left=6 right=6 -> REVERSE shift=0
+boxed in, retries exhausted
+  detected=1 centre=90 closest=35cm@85 width=9 left=6 right=6 -> STOP shift=0
+too close
+  detected=1 centre=90 closest=7cm@70 width=13 left=255 right=255 -> REVERSE shift=0
+empty
+  detected=0 centre=0 closest=0cm@0 width=0 left=0 right=0 -> CONTINUE shift=0
+slightly right of centre
+  detected=1 centre=82 closest=35cm@85 width=12 left=255 right=255 -> TURN_LEFT shift=11
+bit packing round trip
+shared status word
+
+ALL PASSED (0 failures)

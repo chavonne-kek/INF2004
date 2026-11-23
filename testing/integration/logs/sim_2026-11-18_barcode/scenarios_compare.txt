@@ -1,0 +1,4 @@
+bcA|{"pressStartAt":9,"barcode":"A","quiet":true}
+bcB_m85|{"pressStartAt":9,"barcode":"B","motorScaleL":0.85,"quiet":true}
+bcC_spot5|{"pressStartAt":9,"barcode":"C","spotMm":5,"quiet":true}
+bcD_m80|{"pressStartAt":9,"barcode":"D","motorScaleL":0.8,"quiet":true}

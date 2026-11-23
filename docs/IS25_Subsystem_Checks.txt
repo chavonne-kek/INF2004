@@ -1,0 +1,379 @@
+=====================================================================
+ IS25 ROBOT CAR - CHECK EACH SUBSYSTEM ON ITS OWN
+ (INF2004, Robo Pico + Pico W, micro T-Kernel 3.0)
+ Package: IS25_final_30oct.zip, folder IS25_final/firmware/checks/
+ Date: 30 Oct 2026 (afternoon: GP21 reset fix)
+=====================================================================
+
+WHY ONE AT A TIME
+  The full test image runs all five subsystems together, so one bad
+  wire makes the whole log hard to read. Each CHECK image below runs
+  ONE subsystem's self-tests, then prints that subsystem's live
+  readings twice a second while you touch the hardware. You see at
+  once which sensor, wire or motor is the problem.
+
+  Your 29 Oct run already showed: S1 12/12, S2 8/8, S4 7/7 and S5 4/4
+  automatic tests PASSED. The problems were the GY-511 not answering
+  and no encoder pulse reaching the Pico (both wiring), plus S3-U06
+  (a code problem, fixed on 29 Oct).
+
+  The other subsystems keep running in the background (each check
+  needs some of them), but the car NEVER drives by itself in a check
+  or test image. START is only counted and beeps.
+
+CONTENTS
+  PART 0  How to use a check image (same for all five)
+  PART 1  Subsystem 1 - IR line sensors + barcode     (Hao Ming)
+  PART 2  Subsystem 2 - motors + encoders              (Kai Xuan)
+  PART 3  Subsystem 3 - GY-511 IMU                     (Zi Siang)
+  PART 4  Subsystem 4 - ultrasonic, servo, buttons     (Soma)
+  PART 5  Subsystem 5 - WiFi / MQTT                    (Chavonne)
+  PART 6  After all five pass
+  PART 7  Building a check image yourself
+
+
+---------------------------------------------------------------------
+PART 0  HOW TO USE A CHECK IMAGE
+---------------------------------------------------------------------
+  Do the subsystems in the order 1, 2, 3, 4, 5. For each one:
+
+  1. Flash its image (hold BOOTSEL on the Pico W, plug in USB, let
+     go, drag the .uf2 onto RPI-RP2).
+  2. Open the console and save it to that subsystem's folder:
+         python tools/read_serial.py auto subsystem1
+     (or PuTTY, Serial, the COM port, 115200).
+  3. Get the car ready as the part says, then press the Robo Pico
+     RUN/RESET button to start from the beginning.
+  4. Follow the [CHECK] lines. [TEST] lines are the self-tests.
+  5. Keep the log. If something is wrong and the table does not
+     explain it, send me the whole log.
+
+  Image                                        Battery   Car
+  -------------------------------------------  --------  -------------
+  IS25_CHECK_1_IR_line_barcode.uf2             not needed on the track
+  IS25_CHECK_2_motors_encoders.uf2             ON        LIFTED
+  IS25_CHECK_3_IMU.uf2                         not needed level, on the
+                                                         floor
+  IS25_CHECK_4_ultrasonic_servo_buttons.uf2    ON (servo) on the desk
+  IS25_CHECK_5_comms.uf2                       not needed anywhere
+
+  Cable colours in this kit: WHITE = the port's FIRST GPIO, YELLOW =
+  SECOND GPIO, RED = 3V3, BLACK = GND.
+
+  Board LEDs: the small LED next to a Grove port shows that pin's
+  level (the build log used the Grove 2 LED). They are a quick check
+  that needs no code: an encoder LED must blink when the wheel turns;
+  the two Grove 4 LEDs (GP16/GP17, the IMU) should be ON while idle.
+
+
+---------------------------------------------------------------------
+PART 1  SUBSYSTEM 1 - IR LINE SENSORS + BARCODE (Hao Ming)
+---------------------------------------------------------------------
+  Image:   IS25_CHECK_1_IR_line_barcode.uf2      (about 12 s + live)
+  Wiring:  LEFT sensor AO   -> Grove 5 YELLOW (GP26)
+           CENTRE sensor AO -> Grove 6 YELLOW (GP27)
+           RIGHT sensor AO  -> Grove 7 YELLOW (GP28)
+           VCC 3V3, GND. Sensors 2-3 mm above the floor.
+  Ready:   car on the track, centre sensor near the line.
+
+  A. Self-tests - expect 12 PASS:
+       [TEST] S1-U01 PASS  ADC open, readings 0..4095
+       ...
+               TSK_LINE worst sample 71 us        (must be <= 500)
+       [TEST] subsystem1 SUMMARY 12 passed, 0 failed
+
+  B. Calibration, 10 s. When you see
+       [CHECK] S1 step 1 (10 s): ... Slide the car slowly LEFT and
+               RIGHT so every sensor crosses the black line ...
+     slide the car sideways by hand so EACH sensor passes over the
+     black line several times. Each second it prints the 3 numbers:
+       [CHECK]    3 s  IR L  305  C 2980  R  294
+     Expected at the end:
+       [CHECK] S1 calibration OK: black-white span L 2740  C 2740
+               R 2740 (each needs 400 or more)
+     (Your numbers will differ; each span must be 400 or more.)
+
+  C. Live readout every 0.5 s, for example:
+       [CHECK] S1: IR L  300  C 1900  R  305 | error +1 mm, steer
+               left a little | 500 samples/s, ADC errors 0 |
+               barcodes 0 (rejected 0)
+
+     Do this                          You should see
+     -------------------------------  -------------------------------
+     All three sensors over white     three similar numbers
+     Each sensor over black, one at   only THAT number changes, by
+     a time                           400 or more (higher or lower,
+                                      either is fine)
+     Line under the LEFT sensor only  "steer LEFT" (error +40)
+     Line under the RIGHT sensor      "steer RIGHT" (error -40)
+     only
+     Centre sensor on the LEFT EDGE   "centre on the left edge
+     of the line (half on it)         (ideal)" or "a little"
+     Lift the car                     all sensors black -> JUNCTION
+     Nothing touched                  500 samples/s (475-525),
+                                      ADC errors 0
+     Push the car slowly over the     S1: barcode 'A'
+     printed barcode A (both ways)    S4: barcode 'A' -> command 1
+                                      and "barcodes" goes up by 1
+
+  If something is wrong:
+     A number never changes          that sensor has no power, or its
+                                     AO is not on the YELLOW wire
+     LEFT shows "steer RIGHT" and    Grove 5 and Grove 7 cables are
+     RIGHT shows "steer LEFT"        swapped
+     Difference less than 400        sensor too high (2-3 mm), or
+                                     the module's sensitivity
+     Calibration FAILED              a sensor never crossed the line,
+                                     or one of the two rows above
+     Barcode never read, only        sensor too high (a blurred spot
+     "rejected" goes up              merges the 3 mm bars), or push
+                                     more steadily
+     samples/s far from 500          a line "S1 WARNING: kernel tick"
+                                     appears at start: tell me
+
+
+---------------------------------------------------------------------
+PART 2  SUBSYSTEM 2 - MOTORS + ENCODERS (Kai Xuan)
+---------------------------------------------------------------------
+  Image:   IS25_CHECK_2_motors_encoders.uf2      (about 16 s + live)
+  Wiring:  left motor M1 terminals, right motor M2 terminals.
+           LEFT encoder  -> Grove 1 (GP0 or GP1, either wire)
+           RIGHT encoder -> Grove 2 (GP2 or GP3, either wire)
+           Each encoder needs its own RED (3V3) and BLACK (GND).
+  Ready:   CAR LIFTED (wheels free), battery ON. Be ready to turn the
+           wheels by hand as soon as you press RUN/RESET.
+
+  A. Self-tests - expect 9 PASS, and the wheel count:
+       [CAL] S2-M01: turn EACH wheel forward exactly 10 times by hand
+             now (15 s)
+     Turn the LEFT wheel 10 full turns and the RIGHT wheel 10 full
+     turns. Expected (the numbers depend on your encoder):
+       [CAL] MOTION_EDGES_PER_REV = left 46.0 / right 46.0 ...
+       [CAL] left wheel counted on GP1, right on GP2 ...
+       [TEST] subsystem2 SUMMARY 9 passed, 0 failed
+     WRITE DOWN the edges-per-turn number (PART 6).
+
+  B. Encoder readout every 0.5 s - turn each wheel SLOWLY by hand:
+       [CHECK] S2: LEFT  GP0 1 (0 edges)  GP1 0 (175) | RIGHT GP2 1
+               (174)  GP3 1 (0) | counted on GP1 / GP2
+     The number after each pin is its level now (1 or 0), then the
+     edges counted. Expected: turning the LEFT wheel slowly makes ONE
+     of GP0/GP1 change between 1 and 0 and its edges count up; the
+     same for the RIGHT wheel on GP2/GP3. The LED next to that Grove
+     port blinks.
+
+  C. Motor test - car still lifted, battery ON, press START (GP20).
+     It beeps, then each motor runs alone for 2 s at 50 %:
+       [CHECK] S2 motor 1/4: LEFT wheel FORWARD, 50 % for 2 s - LOOK
+               which wheel turns and which way
+       [CHECK]   edges: left encoder 87, other encoder 0 -> ok
+     then RIGHT FORWARD, LEFT BACKWARD, RIGHT BACKWARD. WATCH THE
+     WHEELS: the named wheel must turn, in the named direction.
+     Press START again to repeat.
+
+  If something is wrong:
+     Both pins of a port stay 1,     that encoder has NO POWER or is
+     0 edges, LED does not blink     not plugged in (red, black, plug
+                                     fully in) - the 29 Oct problem
+     A pin stays 0 all the time      encoder output stuck low: power,
+                                     or a damaged cable
+     Turning the LEFT wheel counts   encoder cables swapped: left
+     on GP2/GP3                      encoder must go to Grove 1
+     Motor test: "NO edges" but the  encoder problem (step B)
+     wheel turned
+     Motor test: wheel did not turn  battery off or low, motor wires
+     The OTHER wheel turns           M1 and M2 motor wires swapped
+     ("the OTHER encoder counted")   (or the encoder cables, step B)
+     Wheel turns the WRONG way       swap that motor's two wires at
+                                     M1/M2, or set MOTOR_INVERT_LEFT
+                                     or _RIGHT to 1 in drv_motor.c
+     "motor test skipped"            press RESET (GP21), then START
+
+
+---------------------------------------------------------------------
+PART 3  SUBSYSTEM 3 - GY-511 IMU (Zi Siang)
+---------------------------------------------------------------------
+  Image:   IS25_CHECK_3_IMU.uf2                  (about 17 s + live)
+  Wiring:  GY-511 on Grove 4: SDA = WHITE = GP16, SCL = YELLOW =
+           GP17, VCC = RED = 3V3, GND = BLACK. X arrow forward.
+  Ready:   car level on the floor where you can turn it round.
+
+  A. Self-tests - expect 11 PASS. These lines are normal (they come
+     from the simulated-sensor tests S3-U08/U09):
+       S3: hump 28 mm (max 28 mm)
+       S3: COLLISION
+       S4: faults 0x20 (COLLISION)
+
+     If the GY-511 does not answer, the FIRST lines after start say:
+       S3: IMU not found on I2C0 GP16/GP17 (-57)
+       S3: I2C check: SDA (GP16) ..., SCL (GP17) ...; GY-511 <reason>
+     and S3-U01 and S3-U02 FAIL (the other 9 still pass).
+
+  B. Calibration, only if the sensor answers - 14 s:
+       [CHECK] S3 step 1 (14 s): keep the car STILL for 2 s, then turn
+               it slowly through ONE FULL CIRCLE on the floor
+     Expected:
+       [CHECK] S3 calibration OK: compass span X 800  Y 800 (each
+               needs more than 100)
+
+  C. Live readout every 0.5 s:
+       [CHECK] S3: acc X   +12  Y    -8  Z  +998 mg | pitch +0.25 deg
+               | heading 123 deg | compass X 400  Y 0  Z -300 |
+               reads ok 1542, failed 0
+
+     Do this                          You should see
+     -------------------------------  -------------------------------
+     Car level, still                 Z about +1000 (900 to 1100),
+                                      X and Y between -100 and +100,
+                                      pitch near 0
+     Lift the NOSE about 10 degrees   pitch about +10 (POSITIVE),
+                                      X goes up to about +170
+     Turn the car on the floor        heading changes (0..359)
+     Leave it                         "failed" stays 0
+
+     No data: every 3 s it prints the wiring check again, so you can
+     fix the wires while it runs. When "S3: IMU back" appears, the
+     readout starts; press RUN/RESET once to calibrate the compass.
+
+  The "S3: I2C check" line tells you what is wrong:
+     SDA LOW, SCL LOW               both lines are pulled low: most
+     "a line is held low"           often the GY-511 has NO POWER
+                                    while its white/yellow wires are
+                                    connected. Check RED (3V3) and
+                                    BLACK (GND) at the module. (The
+                                    simulator gives exactly your
+                                    29 Oct result this way.)
+     Both high, "does not answer"   nothing on the bus: Grove 4 cable
+                                    unplugged or on another port
+     "answers with SDA/SCL          swap the white and yellow wires
+     SWAPPED"                       at the GY-511
+     "answers on the bus (driver    send me the log
+     error?)"
+
+  Also wrong:
+     Pitch goes NEGATIVE when the   sensor faces backwards: turn it
+     nose goes up                   so the X arrow points forward
+                                    (or IMU_FWD_SIGN -1 in imu_task.c)
+     Z about -1000                  mounted upside down (IMU_UP_SIGN)
+     Calibration FAILED             the car was not turned a full
+                                    circle, or moved in the first 2 s
+
+
+---------------------------------------------------------------------
+PART 4  SUBSYSTEM 4 - ULTRASONIC, SERVO, BUTTONS, BUZZER (Soma)
+---------------------------------------------------------------------
+  Image:   IS25_CHECK_4_ultrasonic_servo_buttons.uf2  (10 s + live)
+  Wiring:  HC-SR04 on Grove 3: Trig = WHITE = GP4, Echo = YELLOW =
+           GP5. Servo signal GP15 (leave GP14 empty), servo power
+           from the battery. Buttons GP20 (START), GP21 (RESET).
+  Ready:   battery ON (servo), car on the desk, an object about
+           30-50 cm in front of the sensor (for S4-U02).
+
+  A. Self-tests - expect 7 PASS:
+       [TEST] S4-U02 PASS  HC-SR04 echo seen (point it at something
+              < 1 m)
+       [TEST] subsystem4 SUMMARY 7 passed, 0 failed
+
+  B. Servo sweep (watch the sensor):
+       [CHECK] S4 servo -> 90 deg: the sensor must point straight AHEAD
+       [CHECK] S4 servo -> 0 deg: the sensor must point to the car's
+               RIGHT
+       [CHECK] S4 servo -> 180 deg: ... the car's LEFT
+       [CHECK] S4 servo -> 90 deg: ... straight AHEAD
+
+  C. Live readout every 0.5 s:
+       [CHECK] S4: range 30 cm | echo ok | servo 90 deg | presses
+               START 0, RESET 0
+
+     Do this                          You should see
+     -------------------------------  -------------------------------
+     Flat board at 5, 20, 50, 100 cm  range within +-2 cm each
+     Nothing in front                 "range nothing within 1.26 m"
+     Press START (GP20)               a beep, "S4: START pressed (1)
+                                      ...", START 1, and the servo
+                                      sweep again
+     Press RESET (GP21)               a beep, "S4: RESET pressed (1)"
+
+  If something is wrong:
+     "echo MISSING (NO_ECHO          Trig/Echo swapped (white = Trig),
+     fault)" or S4-U02 FAIL          or no power. At 3V3 some HC-SR04s
+                                     do not work: move its VCC to 5 V
+                                     AND fit the 1k/2k divider on Echo
+     Range always short or jumps     same (needs 5 V), or the object
+                                     is too small / at an angle
+     Servo does not move             battery off, servo plug turned
+                                     round, or not on GP15
+     0 deg points LEFT               servo mounted the other way: tell
+                                     Soma (B5_SERVO_RIGHT_DEG)
+     No beep                         if the board has a buzzer on/off
+                                     switch, switch it on (GP22)
+     A press is not counted          that button (GP20/GP21)
+
+
+---------------------------------------------------------------------
+PART 5  SUBSYSTEM 5 - WIFI / MQTT (Chavonne)
+---------------------------------------------------------------------
+  Image:   IS25_CHECK_5_comms.uf2                  (1 s + live)
+  This image has NO MQTT (that needs the IF-07 patch, which needs the
+  instructor's approval first).
+
+  A. Self-tests - expect 4 PASS:
+       [TEST] subsystem5 SUMMARY 4 passed, 0 failed
+     ("S5: malformed command dropped (1)" is part of S5-U02.)
+
+  B. The status line every 2 s - everything the robot would send,
+     decoded:
+       S5: up 3 s | IDLE (none) | link off (no MQTT in this build),
+       signal n/a | line 2 mm, IR 308 1965 317 | odo 0 mm, L 0 R 0
+       mm/s | pitch -0.25 deg, hump FLAT, STATIONARY | barcodes 0
+       (rejected 0) | dropped 0, bad commands 1
+     Check: the values follow what you do (move the car: IR and line
+     change; tilt it: pitch changes; turn a wheel: odo goes up).
+
+  C. WiFi + MQTT, only after the IF-07 patch is approved:
+       cp config/wifi_secrets.example.h config/wifi_secrets.h  (edit)
+       git apply lib_patches/IF-07_mqtt_utk.patch
+       cd build_make && make CHECK=5 NET=lwip MQTT=1 -j8
+       -> mtk3pico_smp1_usb_cdc_wifi_lwip_mqtt_test_check5.uf2
+     Laptop on the same WiFi, broker running, then
+       python tools/is25_dashboard.py --broker <laptop IP>
+     Expected:
+       "S5: link ONLINE" within about 10 s, a signal in dBm, a
+       heartbeat in the dashboard every second.
+       Type start -> "S4: dashboard command START 0" and
+                     "S4: START pressed" (the car does not drive)
+       Type bad   -> "bad commands" goes up by 20, nothing else
+     If the link stays CONNECTING then OFFLINE: SSID, password and
+     broker IP in wifi_secrets.h, laptop firewall (port 1883), both
+     on the same network.
+
+
+---------------------------------------------------------------------
+PART 6  AFTER ALL FIVE PASS
+---------------------------------------------------------------------
+  1. Flash IS25_TEST_does-not-drive.uf2 (all subsystems together):
+     expect 43 PASS.
+  2. Put the PART 2 edges-per-turn number into MOTION_EDGES_PER_REV
+     in app_program/subsystem2/motion_calc.h and rebuild the normal
+     image (make -j8). The prebuilt normal image assumes 40.
+  3. Normal run: car on the line, battery ON, press RUN/RESET. It
+     beeps, waits about 3 s, sweeps 60 left, 120 right, 60 left, then
+     "S4: state IDLE". Press START.
+  The flash-and-test guide (IS25_Flash_and_Test_Guide.txt) covers
+  these steps in detail.
+
+
+---------------------------------------------------------------------
+PART 7  BUILDING A CHECK IMAGE YOURSELF
+---------------------------------------------------------------------
+  In WSL, after changing code:
+     cd ~/pico/INF2004-main/build_make
+     make CHECK=1 -j8   -> mtk3pico_smp1_usb_cdc_wifi_test_check1.uf2
+     ...
+     make CHECK=5 -j8   -> mtk3pico_smp1_usb_cdc_wifi_test_check5.uf2
+  CHECK=n means: subsystem n's self-tests, then its live readout. The
+  code is in app_program/subsystemN/subsystemN_check.c.
+
+=====================================================================
+ End of guide
+=====================================================================

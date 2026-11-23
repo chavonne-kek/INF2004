@@ -1,0 +1,95 @@
+2026-10-26  tools/is25_dashboard.py live test against a local broker (amqtt 127.0.0.1:18830) and a simulated robot publishing the round-trip vectors.
+Dashboard input: start, speed 15, speed 40 (refused locally), bad, rates, quit; second run: estop, reset, quit.
+
+== simulated robot ==
+robot received commands: ['04', '05']
+
+== dashboard (second run) ==
+connected to 127.0.0.1:18830 (rc=Success); subscribing to robot/#
+type a command and press Enter:
+    start | pause | resume | estop | reset | speed <5..25> | bad | quit
+("bad" sends 20 malformed commands: the robot must ignore all of them and
+count them in robot/telemetry/comms -- Tribunal 1 interface test.)
+    0.01  robot/status               {'status': 'online'}
+    0.08  robot/telemetry/barcode    {'index': 15, 'char': 'F', 'reversed': False, 'command': 'NONE'}
+    0.10  robot/telemetry/hump       {'last_mm': 113, 'max_mm': 70}
+    0.13  robot/telemetry/obstacle   {'width_cm': 76, 'closest_cm': 123, 'closest_index': 22, 'closest_angle_deg': 140, 'left_clear_cm': 99, 'right_clear_cm': 68, 'detected': False}
+    0.14  robot/telemetry/state      {'state': 9, 'state_name': 'FINISHED'}
+    0.29  robot/telemetry/barcode    {'index': 41, 'char': '+', 'reversed': False, 'command': 'NONE'}
+    0.31  robot/telemetry/hump       {'last_mm': 106, 'max_mm': 122}
+    0.33  robot/telemetry/obstacle   {'width_cm': 105, 'closest_cm': 6, 'closest_index': 1, 'closest_angle_deg': 35, 'left_clear_cm': 46, 'right_clear_cm': 74, 'detected': True}
+    0.35  robot/telemetry/state      {'state': 1, 'state_name': 'IDLE'}
+    0.49  robot/telemetry/barcode    {'index': 1, 'char': '1', 'reversed': True, 'command': 'NONE'}
+    0.51  robot/telemetry/hump       {'last_mm': 76, 'max_mm': 19}
+    0.53  robot/telemetry/obstacle   {'width_cm': 125, 'closest_cm': 90, 'closest_index': 10, 'closest_angle_deg': 80, 'left_clear_cm': 72, 'right_clear_cm': 125, 'detected': True}
+    0.55  robot/telemetry/state      {'state': 5, 'state_name': 'LINE_RECOVERY'}
+    0.69  robot/telemetry/barcode    {'index': 20, 'char': 'K', 'reversed': True, 'command': 'NONE'}
+    0.71  robot/telemetry/hump       {'last_mm': 127, 'max_mm': 105}
+    0.74  robot/telemetry/obstacle   {'width_cm': 123, 'closest_cm': 111, 'closest_index': 5, 'closest_angle_deg': 55, 'left_clear_cm': 67, 'right_clear_cm': 108, 'detected': False}
+    0.75  robot/telemetry/state      {'state': 4, 'state_name': 'OBSTACLE_AVOID'}
+    0.90  robot/telemetry/barcode    {'index': 3, 'char': '3', 'reversed': True, 'command': 'NONE'}
+    0.92  robot/telemetry/hump       {'last_mm': 63, 'max_mm': 57}
+    0.94  robot/telemetry/obstacle   {'width_cm': 102, 'closest_cm': 65, 'closest_index': 21, 'closest_angle_deg': 135, 'left_clear_cm': 82, 'right_clear_cm': 36, 'detected': True}
+    0.96  robot/telemetry/state      {'state': 2, 'state_name': 'LINE_FOLLOW'}
+[LINE_FOLLOW faults=['STALL', 'ENCODER', 'NO_ECHO', 'COLLISION'] sig=-31 up=872s] line -19 mm LOST | 16045 mm L-305 R210 mm/s | pitch 8.0 hump FLAT TURNING | peak 57 mm | drop 154 bad 207
+    1.10  robot/telemetry/barcode    {'index': 21, 'char': 'L', 'reversed': True, 'command': 'NONE'}
+    1.12  robot/telemetry/hump       {'last_mm': 116, 'max_mm': 63}
+    1.14  robot/telemetry/obstacle   {'width_cm': 46, 'closest_cm': 67, 'closest_index': 8, 'closest_angle_deg': 70, 'left_clear_cm': 82, 'right_clear_cm': 24, 'detected': False}
+    1.16  robot/telemetry/state      {'state': 7, 'state_name': 'EMERGENCY_STOP'}
+    1.30  robot/telemetry/barcode    {'index': 14, 'char': 'E', 'reversed': True, 'command': 'NONE'}
+    1.32  robot/telemetry/hump       {'last_mm': 79, 'max_mm': 100}
+    1.34  robot/telemetry/obstacle   {'width_cm': 10, 'closest_cm': 53, 'closest_index': 9, 'closest_angle_deg': 75, 'left_clear_cm': 34, 'right_clear_cm': 34, 'detected': False}
+    1.36  robot/telemetry/state      {'state': 8, 'state_name': 'FAULT'}
+    1.54  robot/telemetry/barcode    {'index': 28, 'char': 'S', 'reversed': False, 'command': 'NONE'}
+    1.56  robot/telemetry/hump       {'last_mm': 16, 'max_mm': 71}
+    1.58  robot/telemetry/obstacle   {'width_cm': 54, 'closest_cm': 57, 'closest_index': 13, 'closest_angle_deg': 95, 'left_clear_cm': 88, 'right_clear_cm': 63, 'detected': False}
+    1.60  robot/telemetry/state      {'state': 9, 'state_name': 'FINISHED'}
+    1.74  robot/telemetry/barcode    {'index': 38, 'char': ' ', 'reversed': True, 'command': 'NONE'}
+    1.76  robot/telemetry/hump       {'last_mm': 79, 'max_mm': 33}
+    1.78  robot/telemetry/obstacle   {'width_cm': 32, 'closest_cm': 92, 'closest_index': 19, 'closest_angle_deg': 125, 'left_clear_cm': 96, 'right_clear_cm': 78, 'detected': True}
+    1.80  robot/telemetry/state      {'state': 9, 'state_name': 'FINISHED'}
+    1.95  robot/telemetry/barcode    {'index': 3, 'char': '3', 'reversed': False, 'command': 'NONE'}
+    1.97  robot/telemetry/hump       {'last_mm': 93, 'max_mm': 24}
+    1.99  robot/telemetry/obstacle   {'width_cm': 38, 'closest_cm': 5, 'closest_index': 18, 'closest_angle_deg': 120, 'left_clear_cm': 117, 'right_clear_cm': 8, 'detected': True}
+[EMERGENCY_STOP faults=['WIFI', 'COLLISION'] sig=-43 up=3708s] line 30 mm LOST | 8781 mm L-40 R-310 mm/s | pitch 14.5 hump FLAT CRUISING | peak 24 mm | drop 140 bad 56
+    2.01  robot/telemetry/state      {'state': 5, 'state_name': 'LINE_RECOVERY'}
+    2.15  robot/telemetry/barcode    {'index': 4, 'char': '4', 'reversed': True, 'command': 'NONE'}
+    2.17  robot/telemetry/hump       {'last_mm': 127, 'max_mm': 127}
+    2.19  robot/telemetry/obstacle   {'width_cm': 5, 'closest_cm': 4, 'closest_index': 19, 'closest_angle_deg': 125, 'left_clear_cm': 13, 'right_clear_cm': 41, 'detected': True}
+    2.21  robot/telemetry/state      {'state': 6, 'state_name': 'PAUSED'}
+    2.35  robot/telemetry/barcode    {'index': 1, 'char': '1', 'reversed': False, 'command': 'NONE'}
+    2.37  robot/telemetry/hump       {'last_mm': 119, 'max_mm': 107}
+    2.39  robot/telemetry/obstacle   {'width_cm': 80, 'closest_cm': 11, 'closest_index': 3, 'closest_angle_deg': 45, 'left_clear_cm': 121, 'right_clear_cm': 69, 'detected': False}
+    2.41  robot/telemetry/state      {'state': 2, 'state_name': 'LINE_FOLLOW'}
+sent estop = 0x04
+sent reset = 0x05
+    2.56  robot/telemetry/barcode    {'index': 14, 'char': 'E', 'reversed': True, 'command': 'NONE'}
+    2.58  robot/telemetry/hump       {'last_mm': 108, 'max_mm': 93}
+    2.60  robot/telemetry/obstacle   {'width_cm': 94, 'closest_cm': 70, 'closest_index': 7, 'closest_angle_deg': 65, 'left_clear_cm': 35, 'right_clear_cm': 8, 'detected': True}
+    2.62  robot/telemetry/state      {'state': 8, 'state_name': 'FAULT'}
+    2.74  robot/telemetry/barcode    {'index': 12, 'char': 'C', 'reversed': False, 'command': 'STRAIGHT'}
+    2.76  robot/telemetry/hump       {'last_mm': 41, 'max_mm': 127}
+    2.78  robot/telemetry/obstacle   {'width_cm': 122, 'closest_cm': 104, 'closest_index': 4, 'closest_angle_deg': 50, 'left_clear_cm': 2, 'right_clear_cm': 24, 'detected': True}
+    2.80  robot/telemetry/state      {'state': 3, 'state_name': 'TURN_EXECUTE'}
+    2.94  robot/telemetry/barcode    {'index': 40, 'char': '/', 'reversed': True, 'command': 'NONE'}
+    2.96  robot/telemetry/hump       {'last_mm': 108, 'max_mm': 124}
+    2.98  robot/telemetry/obstacle   {'width_cm': 121, 'closest_cm': 64, 'closest_index': 6, 'closest_angle_deg': 60, 'left_clear_cm': 17, 'right_clear_cm': 35, 'detected': False}
+    3.01  robot/telemetry/state      {'state': 9, 'state_name': 'FINISHED'}
+[IDLE faults=['IMU', 'WIFI'] sig=-80 up=2981s] line 27 mm LOST | 21451 mm L-80 R315 mm/s | pitch 16.5 hump DESCENDING DESCENDING | peak 124 mm | drop 248 bad 20
+    3.15  robot/telemetry/barcode    {'index': 12, 'char': 'C', 'reversed': False, 'command': 'STRAIGHT'}
+    3.17  robot/telemetry/hump       {'last_mm': 127, 'max_mm': 121}
+    3.19  robot/telemetry/obstacle   {'width_cm': 7, 'closest_cm': 71, 'closest_index': 1, 'closest_angle_deg': 35, 'left_clear_cm': 42, 'right_clear_cm': 71, 'detected': False}
+    3.21  robot/telemetry/state      {'state': 6, 'state_name': 'PAUSED'}
+    3.35  robot/telemetry/barcode    {'index': 15, 'char': 'F', 'reversed': True, 'command': 'NONE'}
+    3.37  robot/telemetry/hump       {'last_mm': 103, 'max_mm': 127}
+    3.39  robot/telemetry/obstacle   {'width_cm': 90, 'closest_cm': None, 'closest_index': 5, 'closest_angle_deg': 55, 'left_clear_cm': 33, 'right_clear_cm': 67, 'detected': True}
+    3.41  robot/telemetry/state      {'state': 1, 'state_name': 'IDLE'}
+    3.55  robot/telemetry/barcode    {'index': 13, 'char': 'D', 'reversed': True, 'command': 'U_TURN'}
+    3.57  robot/telemetry/hump       {'last_mm': 127, 'max_mm': 75}
+    3.59  robot/telemetry/obstacle   {'width_cm': 75, 'closest_cm': 70, 'closest_index': 5, 'closest_angle_deg': 55, 'left_clear_cm': 109, 'right_clear_cm': 9, 'detected': False}
+    3.61  robot/telemetry/state      {'state': 8, 'state_name': 'FAULT'}
+    3.76  robot/telemetry/barcode    {'index': 27, 'char': 'R', 'reversed': False, 'command': 'NONE'}
+    3.78  robot/telemetry/hump       {'last_mm': 109, 'max_mm': 127}
+    3.80  robot/telemetry/obstacle   {'width_cm': 117, 'closest_cm': 48, 'closest_index': 22, 'closest_angle_deg': 140, 'left_clear_cm': 98, 'right_clear_cm': 57, 'detected': True}
+    3.82  robot/telemetry/state      {'state': 3, 'state_name': 'TURN_EXECUTE'}
+messages per second: {'robot/heartbeat': 9.69, 'robot/status': 0.26, 'robot/telemetry/barcode': 4.85, 'robot/telemetry/comms': 4.85, 'robot/telemetry/hump': 4.85, 'robot/telemetry/imu': 4.85, 'robot/telemetry/line': 5.1, 'robot/telemetry/motion': 5.1, 'robot/telemetry/obstacle': 4.85, 'robot/telemetry/state': 4.85}

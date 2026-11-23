@@ -38,7 +38,8 @@
 
 #define	CNF_MAX_TSKPRI		32	/* Task Max priority */
 
-#define CNF_TIMER_PERIOD	10	/* System timer period */
+#define CNF_TIMER_PERIOD	1	/* System timer period (ms).  1 ms: S1 samples
+				   the IR sensors every 2 ms (team assumption A5) */
 
 /* Maximum number of kernel objects (raised for a 5-subsystem team project) */
 #define CNF_MAX_TSKID		32	/* Task */

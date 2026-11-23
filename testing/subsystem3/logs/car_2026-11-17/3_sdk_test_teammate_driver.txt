@@ -1,0 +1,89 @@
+=== IMU SDK test 13 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.035 g  Y -0.002 g  Z -0.949 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 14 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.038 g  Y -0.002 g  Z -0.948 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 15 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.037 g  Y -0.001 g  Z -0.944 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 16 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.038 g  Y -0.001 g  Z -0.949 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 17 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.035 g  Y -0.003 g  Z -0.953 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 18 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.039 g  Y -0.001 g  Z -0.950 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 19 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.038 g  Y -0.000 g  Z -0.954 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 20 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.037 g  Y -0.002 g  Z -0.943 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 21 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.038 g  Y -0.002 g  Z -0.954 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 22 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.034 g  Y -0.003 g  Z -0.949 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 23 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.037 g  Y -0.001 g  Z -0.955 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 24 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.036 g  Y -0.002 g  Z -0.947 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 25 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.038 g  Y +0.000 g  Z -0.956 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 26 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.037 g  Y -0.002 g  Z -0.956 g  (level: Z near +1 or -1)
+
+=== IMU SDK test 27 (teammate's driver, I2C0 GP16/GP17, 100 kHz) ===
+  lines: SDA GP16 high, SCL GP17 high
+  scan: device at 0x1D  (LSM303D address)
+  lsm303d_init: OK, LSM303D at 0x1D (WHO_AM_I = 0x49)
+  accel: X +0.039 g  Y -0.002 g  Z -0.950 g  (level: Z near +1 or -1)

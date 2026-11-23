@@ -24,3 +24,28 @@ config/wifi_secrets.h
 
 # macOS
 .DS_Store
+
+# PC test programs and generated test vectors (make run rebuilds them)
+testing/*/host/test_host
+testing/*/buddy*_host/imu_host_test
+testing/*/buddy*_host/b5_host_test
+testing/subsystem5/roundtrip/gen_vectors
+testing/subsystem5/roundtrip/vectors.jsonl
+*.exe
+
+# Firmware simulation (tools/sim)
+tools/sim/node_modules/
+tools/sim/bootrom.mjs
+tools/sim/package-lock.json
+tools/sim/last_run.log
+tools/sim/profile.json
+
+# Python caches (tools/ run from the repo)
+__pycache__/
+*.pyc
+# Host test outputs
+testing/**/host/test_host
+testing/subsystem3/buddy4_host/imu_host_test
+testing/subsystem4/buddy5_host/b5_host_test
+testing/subsystem5/roundtrip/gen_vectors
+testing/subsystem5/roundtrip/vectors.jsonl

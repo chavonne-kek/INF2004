@@ -39,9 +39,9 @@
  *	  channel 0 = GP26, channel 1 = GP27, channel 2 = GP28
  *	  channel 3 = GP29 is the Pico W RADIO CLOCK: never set _3 to TRUE.
  */
-#define	DEVCONF_ADC_PIN_INIT_0	FALSE
-#define	DEVCONF_ADC_PIN_INIT_1	FALSE
-#define	DEVCONF_ADC_PIN_INIT_2	FALSE
+#define	DEVCONF_ADC_PIN_INIT_0	TRUE	/* GP26: S1 left IR sensor */
+#define	DEVCONF_ADC_PIN_INIT_1	TRUE	/* GP27: S1 centre IR sensor */
+#define	DEVCONF_ADC_PIN_INIT_2	TRUE	/* GP28: S1 right/barcode IR sensor */
 #define	DEVCONF_ADC_PIN_INIT_3	FALSE
 
 /* Interrupt t priority */

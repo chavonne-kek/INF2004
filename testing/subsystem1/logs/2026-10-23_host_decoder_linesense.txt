@@ -1,0 +1,32 @@
+[HOST] H-BC01   PASS  slide barcodes A F Z W X Y, both directions
+[HOST] H-BC02   PASS  every Code 39 character, both directions
+         3.0 cm/s: 200 good, 0 missed, 0 wrong
+         5.0 cm/s: 199 good, 1 missed, 0 wrong
+        10.0 cm/s: 200 good, 0 missed, 0 wrong
+        15.0 cm/s: 200 good, 0 missed, 0 wrong
+        20.0 cm/s: 200 good, 0 missed, 0 wrong
+        25.0 cm/s: 200 good, 0 missed, 0 wrong
+        30.0 cm/s: 200 good, 0 missed, 0 wrong
+[HOST] H-BC03   PASS  >= 98% read at 3-30 cm/s with noise
+[HOST] H-BC04   PASS  never a wrong character at 3-30 cm/s
+[HOST] H-BC05   PASS  speed changing x2 while reading (both ways)
+[HOST] H-BC06   PASS  print ratio 2.2:1 to 3.5:1 still reads
+[HOST] H-BC07   PASS  bars 75% as dark as the line still read
+[HOST] H-BC08   PASS  any one wide bar printed narrow is rejected
+[HOST] H-BC09   PASS  plain black lines 6-60 mm never decode
+        0 false decodes in 20000 random bar sequences
+[HOST] H-BC10   PASS  random bar sequences never decode
+[HOST] H-BC11   PASS  below minimum speed: no wrong character
+[HOST] H-BC12   PASS  A/B/C/D map to left/right/straight/U-turn
+[HOST] H-LS01   PASS  error never decreases as the car drifts right
+[HOST] H-LS02   PASS  left on line = +40, right only = -40
+        LINE_LOST after 150 samples (300 ms)
+[HOST] H-LS03   PASS  LINE_LOST after 300 ms
+[HOST] H-LS04   PASS  no line: keep steering to the side it was
+        JUNCTION after 30 samples (60 ms)
+[HOST] H-LS05   PASS  JUNCTION after 60 ms
+[HOST] H-LS06   PASS  20 ms dark blip is not a junction
+[HOST] H-LS07   PASS  line word: -40..+40 x all flags, 10 bits used
+[HOST] H-LS08   PASS  calibration applies, rejects a flat sweep
+[HOST] H-LS09   PASS  normalise works if black reads low
+[HOST] SUMMARY 21 passed, 0 failed

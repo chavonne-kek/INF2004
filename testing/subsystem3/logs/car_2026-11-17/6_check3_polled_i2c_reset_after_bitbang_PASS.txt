@@ -1,0 +1,142 @@
+microT-Kernel Version 3.00
+
+
+=== micro T-Kernel on Raspberry Pi Pico W (spec 0x6300, product 0x0003) ===
+dual-core (SMP) build, usermain on core 0
+wifi: cyw43_utk_task starting (proc 1)
+wifi: cyw43_init() ...
+wifi: cyw43_init() returned, bringing interface up ...
+S5: built without MQTT (make NET=lwip MQTT=1 for the dashboard); telemetry stays                               offline
+S4: state IDLE
+all subsystems started
+
+[CHECK] === subsystem 3 check image ===
+[TEST] === test run start ===
+S3: IMU LSM303D at 0x1D, 100 Hz, +-4 g
+[TEST] S3-U01 PASS  TSK_IMU running, IMU (LSM303D) answering on I2C0
+[TEST] S3-U02 PASS  pitch near 0 on a level desk
+[TEST] S3-U03 PASS  IMU status word round trip
+[TEST] S3-U04 PASS  atan2 / heading accuracy
+[TEST] S3-U05 PASS  hump record 14 bits, saturating
+S1: LINE_LOST
+[TEST] S3-U06 PASS  TSK_IMU runs 100 cycles per second
+[TEST] S3-U07 PASS  flat ground: no hump, no lift in 3 s
+S3: hump 28 mm (max 28 mm)
+[TEST] S3-U08 PASS  30 mm hump: one report within +-15 % (NFR9)
+S3: LIFTED (moving up at 221 mm/s) - motors stopped, run over
+S4: faults 0x20 (LIFTED)
+[TEST] S3-U12 PASS  lifted -> FAULT_LIFTED within 0.3 s (rubric: stop when picke                              d up)
+S5: link OFFLINE (no MQTT in this build)
+[TEST] S3-U13 PASS  a 60 % braking ramp raises no FAULT_LIFTED
+[TEST] S3-U11 PASS  constant 10 deg slope is rejected, not counted
+S3: OVERTURNED (up axis -20 % of g) - motors stopped, run over
+[TEST] S3-U14 PASS  overturned -> FAULT_LIFTED, cause OVERTURNED
+[TEST] S3-U15 PASS  FAULT_LIFTED latched until re-armed, then cleared
+[TEST] S3-U16 PASS  vibration and knocks raise no FAULT_LIFTED
+[TEST] subsystem3 SUMMARY 14 passed, 0 failed
+[CHECK] S3: 1 MHz timer counted 100985 in 100 ms (expect about 100000), watchdog                               tick 0x360C
+[CHECK] S3 IMU (LSM303D) on Grove 4: SDA = GP16, SCL = GP17, VCC = 3V3, GND = GN                              D. Chip found: LSM303D at 0x1D
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                               (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                               not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C write NACK #1: addr 0x1D byte 1 of 1, 143 us, status 0x06 raw 0x0510 abo                              rt 0x1 en 0x1 txflr 0 rxflr 0, SDA high SCL high
+[CHECK] S3 step 1 (14 s): keep the car STILL for 2 s, then turn it slowly throug                              h ONE FULL CIRCLE on the floor
+[CHECK]    1 s  keep still
+[CHECK]    2 s  now turn
+[CHECK]    3 s  turning
+[CHECK]    4 s  turning
+[CHECK]    5 s  turning
+[CHECK]    6 s  turning
+[CHECK]    7 s  turning
+[CHECK]    8 s  turning
+[CHECK]    9 s  turning
+[CHECK]   10 s  turning
+[CHECK]   11 s  turning
+S1: LINE_FOUND
+[CHECK]   12 s  turning
+[CHECK]   13 s  turning
+[CHECK]   14 s  turning
+[CHECK] S3 calibration FAILED: compass span X 163  Y 99 (each needs more than 10                              0)
+[CHECK] S3 step 2: readout every 0.5 s. Level car: Z about +1000 mg, X and Y nea                              r 0. Lift the NOSE: pitch must go POSITIVE. Turn the car: heading must change
+[CHECK] S3 step 3 (pick-up test, rubric 10): put the car down for 1 s, then LIFT                               it: 'LIFTED' must appear. Put it down, wait for 'armed', tip it on its side: 'O                              VERTURNED'
+[CHECK] S3: acc X  +304  Y   +61  Z  -871 mg | pitch +12.00 deg | heading n/a (n                              o calibration) | compass X -708  Y 1691  Z -585 | lift: up   +0 mm/s,  97 % of g                               on Z, g 903 mg -> armed | reads ok 1562, failed 1
+[CHECK] S3: acc X  +309  Y   +62  Z  -865 mg | pitch +13.00 deg | heading n/a (n                              o calibration) | compass X -709  Y 1694  Z -581 | lift: up  -29 mm/s,  96 % of g                               on Z, g 903 mg -> armed | reads ok 1612, failed 1
+[CHECK] S3: acc X  +301  Y   +58  Z  -868 mg | pitch +12.00 deg | heading n/a (n                              o calibration) | compass X -718  Y 1691  Z -584 | lift: up  -39 mm/s,  97 % of g                               on Z, g 903 mg -> armed | reads ok 1662, failed 1
+[CHECK] S3: acc X  +286  Y   +61  Z  -874 mg | pitch +11.25 deg | heading n/a (n                              o calibration) | compass X -717  Y 1675  Z -580 | lift: up  -45 mm/s,  97 % of g                               on Z, g 903 mg -> armed | reads ok 1712, failed 1
+[CHECK] S3: acc X  +270  Y   +61  Z  -878 mg | pitch +10.25 deg | heading n/a (n                              o calibration) | compass X -739  Y 1669  Z -570 | lift: up  -41 mm/s,  98 % of g                               on Z, g 903 mg -> armed | reads ok 1762, failed 1
+S1: LINE_LOST
+[CHECK] S3: acc X  +179  Y   +61  Z  -892 mg | pitch +4.75 deg | heading n/a (no                               calibration) | compass X -773  Y 1657  Z -560 | lift: up  -42 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 1813, failed 1
+[CHECK] S3: acc X   +93  Y   +61  Z  -897 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -818  Y 1636  Z -540 | lift: up  -42 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 1863, failed 1
+[CHECK] S3: acc X   +90  Y   +61  Z  -898 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -833  Y 1639  Z -547 | lift: up  -32 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 1913, failed 1
+[CHECK] S3: acc X   +91  Y   +60  Z  -895 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -824  Y 1622  Z -545 | lift: up  -28 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 1963, failed 1
+[CHECK] S3: acc X   +90  Y   +59  Z  -898 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -826  Y 1632  Z -538 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2013, failed 1
+[CHECK] S3: acc X   +91  Y   +59  Z  -895 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -825  Y 1636  Z -537 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2063, failed 1
+[CHECK] S3: acc X   +89  Y   +62  Z  -901 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -846  Y 1644  Z -542 | lift: up  -24 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2113, failed 1
+[CHECK] S3: acc X   +91  Y   +62  Z  -894 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -823  Y 1632  Z -547 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2163, failed 1
+[CHECK] S3: acc X   +96  Y   +58  Z  -902 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -825  Y 1634  Z -542 | lift: up  -24 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2213, failed 1
+[CHECK] S3: acc X   +95  Y   +60  Z  -897 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -831  Y 1643  Z -543 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2264, failed 1
+[CHECK] S3: acc X   +91  Y   +59  Z  -899 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -833  Y 1627  Z -555 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2314, failed 1
+[CHECK] S3: acc X   +90  Y   +58  Z  -904 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -828  Y 1630  Z -529 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2364, failed 1
+[CHECK] S3: acc X   +90  Y   +61  Z  -897 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -833  Y 1652  Z -544 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2414, failed 1
+[CHECK] S3: acc X   +90  Y   +60  Z  -900 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -819  Y 1634  Z -538 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2464, failed 1
+[CHECK] S3: acc X  +103  Y   +67  Z  -897 mg | pitch +0.25 deg | heading n/a (no                               calibration) | compass X -828  Y 1627  Z -550 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2514, failed 1
+[CHECK] S3: acc X  +110  Y   +55  Z  -900 mg | pitch +0.25 deg | heading n/a (no                               calibration) | compass X -823  Y 1630  Z -546 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2564, failed 1
+[CHECK] S3: acc X   +90  Y   +61  Z  -898 mg | pitch +0.25 deg | heading n/a (no                               calibration) | compass X -820  Y 1629  Z -548 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2614, failed 1
+[CHECK] S3: acc X   +61  Y  +162  Z  -928 mg | pitch -1.25 deg | heading n/a (no                               calibration) | compass X -766  Y 1629  Z -465 | lift: up   -2 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2665, failed 1
+S1: LINE_FOUND
+[CHECK] S3: acc X  +144  Y   +57  Z  -896 mg | pitch +3.00 deg | heading n/a (no                               calibration) | compass X -678  Y 1618  Z -544 | lift: up  +57 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2715, failed 1
+[CHECK] S3: acc X   +99  Y   +66  Z  -909 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -774  Y 1594  Z -421 | lift: up  -99 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 2765, failed 1
+[CHECK] S3: acc X   +62  Y   +98  Z  -893 mg | pitch -1.25 deg | heading n/a (no                               calibration) | compass X -748  Y 1604  Z -343 | lift: up  -46 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2815, failed 1
+[CHECK] S3: acc X   +48  Y  +141  Z  -895 mg | pitch -2.00 deg | heading n/a (no                               calibration) | compass X -750  Y 1591  Z -272 | lift: up  -25 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2865, failed 1
+[CHECK] S3: acc X   +46  Y  +136  Z  -891 mg | pitch -2.00 deg | heading n/a (no                               calibration) | compass X -761  Y 1588  Z -289 | lift: up  -14 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2915, failed 1
+[CHECK] S3: acc X   +27  Y  +133  Z  -836 mg | pitch -4.00 deg | heading n/a (no                               calibration) | compass X -762  Y 1553  Z -280 | lift: up  -78 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 2965, failed 1
+S1: LINE_LOST
+[CHECK] S3: acc X   -28  Y  +119  Z  -894 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -817  Y 1622  Z -336 | lift: up   +4 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 3015, failed 1
+S1: LINE_FOUND
+[CHECK] S3: acc X  -256  Y  +228  Z  -860 mg | pitch -2.00 deg | heading n/a (no                               calibration) | compass X -747  Y 1659  Z -519 | lift: up   -9 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 3065, failed 1
+S1: LINE_LOST
+[CHECK] S3: acc X  +105  Y  +100  Z  -877 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -742  Y 1665  Z -532 | lift: up  -20 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 3116, failed 1
+S1: LINE_FOUND
+[CHECK] S3: acc X   +72  Y   -36  Z  -890 mg | pitch -1.25 deg | heading n/a (no                               calibration) | compass X -853  Y 1630  Z -725 | lift: up  -13 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 3166, failed 1
+[CHECK] S3: acc X   -22  Y  -177  Z  -859 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -907  Y 1526  Z -1054 | lift: up   -1 mm/s,  96 % of g                               on Z, g 903 mg -> armed | reads ok 3216, failed 1
+S1: LINE_LOST
+[CHECK] S3: acc X  -121  Y  -229  Z  -850 mg | pitch -12.00 deg | heading n/a (n                              o calibration) | compass X -922  Y 1486  Z -1151 | lift: up   +4 mm/s,  92 % of                               g on Z, g 903 mg -> armed | reads ok 3266, failed 1
+[CHECK] S3: acc X   -60  Y  -219  Z  -853 mg | pitch -8.50 deg | heading n/a (no                               calibration) | compass X -907  Y 1516  Z -1128 | lift: up  +20 mm/s,  93 % of g                               on Z, g 903 mg -> armed | reads ok 3316, failed 1
+[CHECK] S3: acc X   -34  Y  -172  Z  -870 mg | pitch -7.50 deg | heading n/a (no                               calibration) | compass X -890  Y 1523  Z -1088 | lift: up  +25 mm/s,  95 % of g                               on Z, g 903 mg -> armed | reads ok 3366, failed 1
+[CHECK] S3: acc X   -28  Y  -192  Z  -867 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -903  Y 1517  Z -1094 | lift: up  +30 mm/s,  95 % of g                               on Z, g 903 mg -> armed | reads ok 3416, failed 1
+[CHECK] S3: acc X   -32  Y  -155  Z  -874 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -854  Y 1566  Z -987 | lift: up  +25 mm/s,  96 % of g                               on Z, g 903 mg -> armed | reads ok 3466, failed 1
+S1: LINE_FOUND
+[CHECK] S3: acc X    +1  Y   -62  Z  -880 mg | pitch -4.75 deg | heading n/a (no                               calibration) | compass X -784  Y 1616  Z -721 | lift: up   +6 mm/s,  98 % of g                               on Z, g 903 mg -> armed | reads ok 3517, failed 1
+S1: LINE_LOST
+[CHECK] S3: acc X   +88  Y   +64  Z  -900 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -802  Y 1662  Z -527 | lift: up  -13 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 3567, failed 1
+[CHECK] S3: acc X   -21  Y  +202  Z  -875 mg | pitch -5.75 deg | heading n/a (no                               calibration) | compass X -794  Y 1620  Z -218 | lift: up  -28 mm/s,  98 % of g                               on Z, g 903 mg -> armed | reads ok 3617, failed 1
+[CHECK] S3: acc X   -26  Y  +302  Z  -865 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -698  Y 1598  Z 9 | lift: up  -26 mm/s,  95 % of g on                               Z, g 903 mg -> armed | reads ok 3667, failed 1
+[CHECK] S3: acc X   -35  Y  +294  Z  -866 mg | pitch -7.50 deg | heading n/a (no                               calibration) | compass X -671  Y 1573  Z 56 | lift: up   -4 mm/s,  95 % of g on                               Z, g 903 mg -> armed | reads ok 3717, failed 1
+[CHECK] S3: acc X   -27  Y  +298  Z  -868 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -656  Y 1558  Z 62 | lift: up   +0 mm/s,  95 % of g on                               Z, g 903 mg -> armed | reads ok 3767, failed 1
+[CHECK] S3: acc X   -23  Y  +305  Z  -862 mg | pitch -6.50 deg | heading n/a (no                               calibration) | compass X -649  Y 1552  Z 67 | lift: up   +4 mm/s,  95 % of g on                               Z, g 903 mg -> armed | reads ok 3817, failed 1
+[CHECK] S3: acc X   -45  Y  +248  Z  -876 mg | pitch -7.50 deg | heading n/a (no                               calibration) | compass X -716  Y 1592  Z -44 | lift: up   +1 mm/s,  96 % of g o                              n Z, g 903 mg -> armed | reads ok 3867, failed 1
+[CHECK] S3: acc X  +172  Y  +139  Z  -867 mg | pitch +3.00 deg | heading n/a (no                               calibration) | compass X -758  Y 1645  Z -420 | lift: up  -48 mm/s,  99 % of g                               on Z, g 903 mg -> armed | reads ok 3917, failed 1
+[CHECK] S3: acc X   +94  Y   +62  Z  -892 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -793  Y 1644  Z -533 | lift: up  -18 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 3968, failed 1
+[CHECK] S3: acc X   +98  Y   +55  Z  -901 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -784  Y 1654  Z -523 | lift: up  -22 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4018, failed 1
+[CHECK] S3: acc X   +90  Y   +58  Z  -901 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -786  Y 1659  Z -521 | lift: up  -23 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4068, failed 1
+[CHECK] S3: acc X   +88  Y   +60  Z  -897 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -801  Y 1643  Z -519 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4118, failed 1
+[CHECK] S3: acc X   +83  Y   +62  Z  -900 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -777  Y 1659  Z -521 | lift: up  -24 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4168, failed 1
+[CHECK] S3: acc X   +90  Y   +62  Z  -896 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -797  Y 1652  Z -520 | lift: up  -27 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4218, failed 1
+[CHECK] S3: acc X   +86  Y   +60  Z  -898 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -774  Y 1662  Z -526 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4268, failed 1
+[CHECK] S3: acc X   +84  Y   +59  Z  -899 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -781  Y 1659  Z -519 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4318, failed 1
+[CHECK] S3: acc X   +89  Y   +62  Z  -902 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -796  Y 1658  Z -522 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4368, failed 1
+[CHECK] S3: acc X   +89  Y   +61  Z  -899 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -769  Y 1650  Z -526 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4419, failed 1
+[CHECK] S3: acc X   +86  Y   +62  Z  -897 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -788  Y 1657  Z -516 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4469, failed 1
+[CHECK] S3: acc X   +85  Y   +60  Z  -899 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -778  Y 1671  Z -512 | lift: up  -26 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4519, failed 1
+[CHECK] S3: acc X   +86  Y   +60  Z  -901 mg | pitch +0.00 deg | heading n/a (no                               calibration) | compass X -788  Y 1665  Z -519 | lift: up  -25 mm/s, 100 % of g                               on Z, g 903 mg -> armed | reads ok 4569, failed 1
+[CHECK] S3: acc X   +90  Y   +61  Z  -897 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -802  Y 1658  Z -517 | lift: up  -25 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4619, failed 1
+[CHECK] S3: acc X   +86  Y   +62  Z  -900 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -776  Y 1654  Z -529 | lift: up  -23 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4669, failed 1
+[CHECK] S3: acc X   +86  Y   +57  Z  -898 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -791  Y 1662  Z -531 | lift: up  -23 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4719, failed 1
+[CHECK] S3: acc X   +87  Y   +61  Z  -899 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -787  Y 1644  Z -513 | lift: up  -22 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4769, failed 1
+[CHECK] S3: acc X   +84  Y   +62  Z  -900 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -769  Y 1666  Z -515 | lift: up  -24 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4820, failed 1
+[CHECK] S3: acc X   +89  Y   +62  Z  -898 mg | pitch +0.00 deg | heading n/a (no calibration) | compass X -782  Y 1637  Z -520 | lift: up  -27 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4870, failed 1
+[CHECK] S3: acc X  +157  Y   +68  Z  -898 mg | pitch +2.00 deg | heading n/a (no calibration) | compass X -774  Y 1635  Z -514 | lift: up  -24 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4920, failed 1
+[CHECK] S3: acc X   +68  Y   +57  Z  -899 mg | pitch -1.25 deg | heading n/a (no calibration) | compass X -748  Y 1653  Z -522 | lift: up  -27 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 4970, failed 1
+[CHECK] S3: acc X   +80  Y   +57  Z  -901 mg | pitch -0.25 deg | heading n/a (no calibration) | compass X -775  Y 1645  Z -520 | lift: up  -25 mm/s, 100 % of g on Z, g 903 mg -> armed | reads ok 5020, failed 1

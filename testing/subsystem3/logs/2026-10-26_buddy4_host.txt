@@ -1,0 +1,70 @@
+2026-10-26  testing/subsystem3/buddy4_host  (make run)  gcc 13
+cc -std=c99 -Wall -Wextra -Werror -DIMU_TEST_HOOKS -I ../../../app_program/subsystem3 -o imu_host_test imu_host_test.c ../../../app_program/subsystem3/imu.c
+./imu_host_test
+imu.c host tests (100 Hz, integer maths)
+
+[T1] 10 s flat cruise at 250 mm/s
+  PASS  no hump on flat ground                               (0)
+  PASS  no collision on flat ground                          (0)
+  PASS  pitch stays level (<0.5 deg)                         (0 in -50..50)
+
+[T2] 30 mm hump, 400 mm long, 250 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 30 mm +/-15% (NFR9)                      (28 in 25..35)
+  PASS  humP flag cleared after the hump                     (0)
+
+[T3] 20 mm hump, 200 mm long, 150 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 20 mm +/-15%                             (19 in 17..23)
+
+[T4] 40 mm hump, 600 mm long, 250 mm/s
+  PASS  exactly one hump detected                            (1)
+  PASS  peak height 40 mm +/-15%                             (38 in 34..46)
+
+[T5] two humps in one run
+  PASS  both humps counted separately                        (2)
+  PASS  second hump peak still 25 mm                         (23 in 21..29)
+
+[T6] 60 % braking ramp, no impact (must not stop the robot)
+  PASS  braking alone raises no COLLISION                    (0)
+
+[T7] sideways impact + 67 % speed collapse
+  PASS  COLLISION raised                                     (53)
+  PASS  raised within 200 ms of the impact                   (53 in 52..72)
+  PASS  motion class = IMPACT                                (7)
+  PASS  a crash does not produce a fake hump                 (0)
+
+[T8] 1.2 g vertical kick (hump / pothole edge)
+  PASS  vertical kick raises no COLLISION                    (0)
+
+[T9] held on a 10 deg wedge, stationary
+  PASS  pitch reads 1000 cdeg +/-1.5 deg                     (925 in 850..1150)
+  PASS  a constant slope is not a hump                       (0)
+
+[T10] 60 s of +/-15 mg noise on a flat, moving robot
+  PASS  no false hump in 60 s of noise                       (0)
+  PASS  no false collision in 60 s of noise                  (0)
+  PASS  noise never tilts the pitch estimate (<2 deg)        (25 in -200..200)
+
+[T11] robot at rest
+  PASS  motion class = STATIONARY                            (1)
+
+[T11b] no odometry published yet (IF-02 not ready)
+  PASS  motion = UNKNOWN, not a wrong guess                  (0)
+
+[T12] telemetry packing round-trip
+  PASS  peak field survives the 14-bit field                 (4095)
+  PASS  hump state field                                     (2)
+  PASS  motion field                                         (6)
+  PASS  flags field                                          (10)
+  PASS  sequence field                                       (195)
+  PASS  pitch 12.34 deg -> 0.25 deg grid                     (1225 in 1225..1250)
+  PASS  roll -5.67 deg -> 0.25 deg grid                      (-550 in -600..-550)
+  PASS  pitch below -32 deg clamps, does not wrap            (0)
+
+[T13] record sizes
+  PASS  terrain record is 4 bytes                            (4)
+  PASS  sequence occupies the top byte                       (195)
+
+----------------------------------------------
+35 passed, 0 failed

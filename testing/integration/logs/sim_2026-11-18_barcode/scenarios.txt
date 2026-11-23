@@ -1,0 +1,3 @@
+bcA|{"pressStartAt":9,"barcode":"A","branchLeftAtX":800,"quiet":true}
+bcD_m85|{"pressStartAt":9,"barcode":"D","motorScaleL":0.85,"quiet":true}
+obs_c0_w16|{"pressStartAt":9,"boxX":700,"boxW":160,"boxD":60,"quiet":true,"traceMs":1000}

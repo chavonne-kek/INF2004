@@ -1,29 +1,70 @@
-/*
- *	subsystem5.c
- *	Subsystem 5 -- <name>.  EMPTY TEMPLATE.
+/** @file subsystem5.c
  *
- *	subsystem5_init():  create this subsystem's kernel objects
- *	                    (semaphores, mailboxes, ...).  Do not start
- *	                    tasks here.
- *	subsystem5_start(): create and start this subsystem's tasks, e.g.
- *	    ID tid = app_start_task(my_task, S5_PRI_MAIN, 0, "my_task");
- *	    return (tid < E_OK) ? tid : E_OK;
+ * @brief Subsystem 5 (Buddy 1): start-up and the public interface in
+ *        subsystem5.h.
  *
- *	Drivers for this subsystem's hardware go in this folder as
- *	drv_<name>.c / drv_<name>.h, called only from the task that owns
- *	the peripheral (TEAM.md section 3).
- *
- *	Record every pin, task, object and interface in TEAM.md.
+ * Owner: Chavonne (student ID 2502481).
  */
 
 #include "subsystem5.h"
+#include "comms_task.h"
 
-EXPORT ER subsystem5_init(void)
+
+/*!
+ * @brief Phase 1: create mbf_telemetry, mbf_mqtt_tx, mbf_mqtt_rx.
+ */
+ER
+subsystem5_init (void)
 {
-	return E_OK;
+#if !defined(TM_MQTT)
+    tm_printf((UB *)"S5: built without MQTT (make NET=lwip MQTT=1 for the "
+              "dashboard); telemetry stays offline\n");
+#endif
+
+    return (comms_task_init());
 }
 
-EXPORT ER subsystem5_start(void)
+/*!
+ * @brief Phase 2: start TSK_COMMS on core 0.
+ */
+ER
+subsystem5_start (void)
 {
-	return E_OK;
+    return (comms_task_start());
 }
+
+/*!
+ * @brief Post an event telemetry record (IF-06).  Never blocks; a full
+ *        buffer drops the record and counts it.
+ *
+ * @param[in] type   S5_TLM_* record type.
+ * @param[in] p_data Packed payload (length fixed per type, subsystem5.h).
+ * @param[in] len    Payload length.
+ *
+ * @return E_OK, E_PAR (wrong length) or E_TMOUT (buffer full).
+ */
+ER
+subsystem5_post (subsystem5_tlm_t type, uint8_t const * p_data, uint8_t len)
+{
+    return (comms_task_post(type, p_data, len));
+}
+
+subsystem5_link_t
+subsystem5_link_state (void)
+{
+    return ((subsystem5_link_t)comms_task_link());
+}
+
+uint16_t
+subsystem5_drop_count (void)
+{
+    return (comms_task_drops());
+}
+
+uint16_t
+subsystem5_bad_command_count (void)
+{
+    return (comms_task_bad());
+}
+
+/*** end of file ***/

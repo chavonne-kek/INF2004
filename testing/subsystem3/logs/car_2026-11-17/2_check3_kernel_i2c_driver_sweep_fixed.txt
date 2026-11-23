@@ -1,0 +1,132 @@
+
+
+=== micro T-Kernel on Raspberry Pi Pico W (spec 0x6300, product 0x0003) ===
+dual-core (SMP) build, usermain on core 0
+wifi: cyw43_utk_task starting (proc 1)
+wifi: cyw43_init() ...
+wifi: cyw43_init() returned, bringing interface up ...
+S5: built without MQTT (make NET=lwip MQTT=1 for the dashboard); telemetry stays                                                                                                                      offline
+all subsystems started
+
+S4: state IDLE
+[CHECK] === subsystem 3 check image ===
+[TEST] === test run start ===
+[TEST] S3-U01 PASS  TSK_IMU running, IMU (LSM303D) answering on I2C0
+[TEST] S3-U02 FAIL  pitch near 0 on a level desk   (../app_program/subsystem3/su                                                                                                                     bsystem3_test.c:71)
+[TEST] S3-U03 PASS  IMU status word round trip
+[TEST] S3-U04 PASS  atan2 / heading accuracy
+[TEST] S3-U05 PASS  hump record 14 bits, saturating
+S1: LINE_LOST
+[TEST] S3-U06 FAIL  TSK_IMU runs 100 cycles per second   (../app_program/subsyst                                                                                                                     em3/subsystem3_test.c:115)
+S3: IMU not found on I2C0 GP16/GP17 (-50): no LSM303D at 0x1D/0x1E, no LSM303DLH                                                                                                                     C at 0x19
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU answers on the bus, but not                                                                                                                      as an LSM303D (WHO_AM_I) or LSM303DLHC: other chip?
+S4: faults 0x04 (IMU)
+[TEST] S3-U07 PASS  flat ground: no hump, no lift in 3 s
+S3: hump 28 mm (max 28 mm)
+S5: link OFFLINE (no MQTT in this build)
+[TEST] S3-U08 PASS  30 mm hump: one report within +-15 % (NFR9)
+S3: LIFTED (moving up at 221 mm/s) - motors stopped, run over
+S4: faults 0x24 (IMU LIFTED)
+[TEST] S3-U12 PASS  lifted -> FAULT_LIFTED within 0.3 s (rubric: stop when picke                                                                                                                     d up)
+[TEST] S3-U13 PASS  a 60 % braking ramp raises no FAULT_LIFTED
+[TEST] S3-U11 PASS  constant 10 deg slope is rejected, not counted
+S3: OVERTURNED (up axis -20 % of g) - motors stopped, run over
+[TEST] S3-U14 PASS  overturned -> FAULT_LIFTED, cause OVERTURNED
+[TEST] S3-U15 PASS  FAULT_LIFTED latched until re-armed, then cleared
+[TEST] S3-U16 PASS  vibration and knocks raise no FAULT_LIFTED
+[TEST] subsystem3 SUMMARY 12 passed, 2 failed
+[CHECK] S3 IMU (LSM303D) on Grove 4: SDA = GP16, SCL = GP17, VCC = 3V3, GND = GN                                                                                                                     D. Chip found: none
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+[CHECK] S3: NO DATA from the IMU, so no calibration. The wiring check below repe                                                                                                                     ats every 3 s while you fix it; when 'S3: IMU back' appears, press RUN/RESET to                                                                                                                      calibrate
+[CHECK] S3 step 2: readout every 0.5 s. Level car: Z about +1000 mg, X and Y nea                                                                                                                     r 0. Lift the NOSE: pitch must go POSITIVE. Turn the car: heading must change
+[CHECK] S3 step 3 (pick-up test, rubric 10): put the car down for 1 s, then LIFT                                                                                                                      it: 'LIFTED' must appear. Put it down, wait for 'armed', tip it on its side: 'O                                                                                                                     VERTURNED'
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: SWEEP every Grove pair -> no IMU anywhere (module dead, or 3V3/GND not reach                                                                                                                     ing it)
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: SWEEP every Grove pair -> no IMU anywhere (module dead, or 3V3/GND not reach                                                                                                                     ing it)
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: SWEEP every Grove pair -> no IMU anywhere (module dead, or 3V3/GND not reach                                                                                                                     ing it)
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired                                                                                                                      (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is                                                                                                                      not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VC                                                                                                                     C (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: SWEEP every Grove pair -> no IMU anywhere (module dead, or 3V3/GND not reaching it)
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VCC (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...
+S3: I2C scan found NOTHING - power, GND, or SDA/SCL swapped
+S3: I2C check: SDA (GP16) high, SCL (GP17) high; IMU does not answer -> check VCC (3V3), GND, SDA = GP16, SCL = GP17 (the S3 check image scans every Grove pair)
+[CHECK] S3: no data from the IMU (re-tried every second); wiring check:
+S3: module pull-ups: SDA GP16 HIGH, SCL GP17 HIGH -> module IS powered and wired (chip not answering = dead chip)
+S3: drive test SDA GP16 ok, SCL GP17 ok -> car pins can drive the bus (fault is not the Pico)
+S3: sanity 0x7F NACKs (scan is trustworthy)
+S3: I2C scan SDA GP16 / SCL GP17 ...

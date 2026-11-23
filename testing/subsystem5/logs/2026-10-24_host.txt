@@ -1,0 +1,8 @@
+        26 of 256 one-byte payloads are valid
+[HOST] H-CO01   PASS  commands: 5 opcodes + SPEED 5..25, nothing else
+[HOST] H-CO02   PASS  wrong length is malformed
+[HOST] H-CO03   PASS  heartbeat 29 bits, uptime wraps at 4096 s
+[HOST] H-CO04   PASS  offline buffer: 16 newest kept, oldest overwritten
+[HOST] H-CO05   PASS  topic table and event sizes
+[HOST] H-CO06   PASS  payloads are little-endian
+[HOST] SUMMARY 6 passed, 0 failed

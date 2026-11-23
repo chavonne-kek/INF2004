@@ -82,6 +82,16 @@
 #define LWIP_DNS                    1
 #define LWIP_TCP_KEEPALIVE          1
 
+/* MQTT client (IS25 IF-07).  lwIP holds a request slot for every publish,
+ * QoS 0 included, until the broker's TCP ACK arrives (mqtt_tcp_sent_cb),
+ * and Windows may wait up to 200 ms before it acknowledges.  With the
+ * default 4 slots the first four messages of each 1 s burst used them all
+ * and the heartbeat and comms messages behind them failed with ERR_MEM:
+ * the dashboard saw 3 heartbeats in 6 minutes (17 Nov).  16 slots and a
+ * 1 KB output buffer hold more than two full bursts. */
+#define MQTT_REQ_MAX_IN_FLIGHT      16
+#define MQTT_OUTPUT_RINGBUF_SIZE    1024
+
 #define MEM_STATS                   0
 #define SYS_STATS                   0
 #define MEMP_STATS                  0

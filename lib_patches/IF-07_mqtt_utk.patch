@@ -1,0 +1,257 @@
+diff --git a/lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c b/lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c
+index 0913758..5677a93 100644
+--- a/lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c
++++ b/lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c
+@@ -17,13 +17,18 @@
+ 
+ #include "lwip/apps/mqtt.h"
+ #include "lwip/ip_addr.h"
++#include "lwip/netif.h"
+ #include "lwip/timeouts.h"
+ #include "wifi_secrets.h"
+ #include "mqtt_utk.h"
+ #include <tm/tmonitor.h>
+ 
+-#define MQTT_UTK_HEARTBEAT_MS   5000
+-#define MQTT_UTK_KEEPALIVE_S    60
++/* IS25 IF-07 (needs instructor approval, TEAM.md section 3): exchange
++ * messages with TSK_COMMS through comms_bridge.h.  That header includes
++ * only <stdint.h>, so this file still never includes tk/tkernel.h. */
++#include "../../../../app_program/subsystem5/comms_bridge.h"
++
++#define MQTT_UTK_KEEPALIVE_S    30  /* IS25: 30 s. Was COMMS_BRIDGE_KEEPALIVE_S (5 s), so any 7.5 s stall let the broker drop the car and it never came back. */
+ #define MQTT_UTK_RETRY_MS       3000
+ 
+ /* Inbound message staging. A publish arrives as one topic callback followed by
+@@ -71,19 +76,19 @@ static void incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
+ 
+ 	for(i = 0; i < len; i++) {
+ 		if(rx_len < (MQTT_UTK_RX_DATA_MAX - 1)) {
+-			/* The console is a terminal -- keep raw bytes from a
+-			 * payload this demo did not publish from scrambling it. */
+-			UB c = data[i];
+-			rx_data[rx_len++] = (c >= 0x20 && c < 0x7f)? c: '.';
++			rx_data[rx_len++] = data[i];	/* IS25: keep raw bytes */
+ 		} else {
+ 			rx_truncated = 1;
+ 		}
+ 	}
+ 
+ 	if((flags & MQTT_DATA_FLAG_LAST) != 0) {
+-		rx_data[rx_len] = '\0';
+-		tm_printf((UB*)"mqtt: RX [%s] \"%s\"%s\n", rx_topic, rx_data,
+-			  rx_truncated? " (truncated)": "");
++		/* IS25 IF-07: binary command payloads go to TSK_COMMS, which
++		 * validates them.  A truncated payload is passed on at full
++		 * length so it is counted as malformed. */
++		comms_bridge_received(rx_topic, rx_data,
++				      rx_truncated? (u16_t)MQTT_UTK_RX_DATA_MAX
++						  : rx_len);
+ 	}
+ }
+ 
+@@ -91,7 +96,7 @@ static void subscribe_done_cb(void *arg, err_t result)
+ {
+ 	(void)arg;
+ 	if(result == ERR_OK) {
+-		tm_printf((UB*)"mqtt: subscribed to " MQTT_TOPIC "\n");
++		tm_printf((UB*)"mqtt: subscribed to " COMMS_BRIDGE_TOPIC_COMMAND "\n");
+ 	} else {
+ 		tm_printf((UB*)"mqtt: subscribe failed, err=%d\n", (int)result);
+ 	}
+@@ -105,26 +110,51 @@ static void publish_done_cb(void *arg, err_t result)
+ 	}
+ }
+ 
++/* IS25 IF-07: every 20 ms, publish what TSK_COMMS queued (TMO_POL inside
++ * the bridge, so this never blocks the service task).
++ *
++ * lwIP keeps a request slot for every publish, QoS 0 too, until the
++ * broker's TCP ACK comes back (see lwipopts.h).  A message lwIP cannot take
++ * yet (ERR_MEM) is held here and sent first at the next poll; it used to
++ * be dropped, and the heartbeat, fifth in each 1 s burst, rarely got
++ * through (17 Nov).  After HOLD_MAX_POLLS failed polls (1 s) it is given
++ * up, so one bad message can never block the queue. */
++#define MQTT_UTK_HOLD_MAX_POLLS	50
++
+ static void heartbeat_timeout(void *arg)
+ {
+-	static unsigned int	count = 0;
+-	UB			payload[48];
+-	int			len;
++	static u8_t	payload[COMMS_BRIDGE_PAYLOAD_MAX];
++	static const char *topic;
++	static u8_t	qos;
++	static int32_t	held = -1;	/* Payload length; -1: nothing held. */
++	static u8_t	tries;
++	int		n;
+ 
+ 	(void)arg;
+ 
+-	if(mqtt_client_is_connected(client)) {
+-		len = tm_sprintf(payload, (const UB*)"hb %u", count++);
+-		tm_printf((UB*)"mqtt: TX [" MQTT_TOPIC "] \"%s\"\n", payload);
+-		(void)mqtt_publish(client, MQTT_TOPIC, payload, (u16_t)len,
+-				   0 /* qos */, 0 /* retain */,
+-				   publish_done_cb, NULL);
++	for(n = 0; n < COMMS_BRIDGE_MAX_PER_POLL; n++) {
++		if(!mqtt_client_is_connected(client)) {
++			break;
++		}
++		if(held < 0) {
++			held = comms_bridge_next(&topic, payload,
++						 sizeof(payload), &qos);
++			tries = 0;
++			if(held < 0) {
++				break;
++			}
++		}
++		if(mqtt_publish(client, topic, payload, (u16_t)held, qos,
++				0 /* retain */, publish_done_cb, NULL) != ERR_OK) {
++			if(++tries >= MQTT_UTK_HOLD_MAX_POLLS) {
++				held = -1;	/* Give it up. */
++			}
++			break;	/* Held: tried again first at the next poll. */
++		}
++		held = -1;	/* Copied into lwIP's output buffer. */
+ 	}
+ 
+-	/* Re-arms itself every call -- mqtt.c's connection callback (below)
+-	 * only starts this chain once, on the transition into MQTT_CONNECT_
+-	 * ACCEPTED, so there is exactly one heartbeat chain alive at a time. */
+-	sys_timeout(MQTT_UTK_HEARTBEAT_MS, heartbeat_timeout, NULL);
++	sys_timeout(COMMS_BRIDGE_POLL_MS, heartbeat_timeout, NULL);
+ }
+ 
+ static void retry_timeout(void *arg)
+@@ -148,7 +178,8 @@ static void connection_cb(mqtt_client_t *c, void *arg, mqtt_connection_status_t
+ 		 * permanently after the first disconnect. */
+ 		connecting = 0;
+ 
+-		tm_printf((UB*)"mqtt: connected to " MQTT_BROKER_IP "\n");
++		tm_printf((UB*)"mqtt: connected to %s\n",
++			  ip4addr_ntoa(ip_2_ip4(&broker_addr)));
+ 
+ 		/* Subscribe to the same topic this client publishes to, so every
+ 		 * heartbeat comes back from the broker and is printed by
+@@ -159,8 +190,16 @@ static void connection_cb(mqtt_client_t *c, void *arg, mqtt_connection_status_t
+ 		mqtt_set_inpub_callback(client, incoming_publish_cb,
+ 					incoming_data_cb, NULL);
+ 
+-		err = mqtt_subscribe(client, MQTT_TOPIC, 0 /* qos */,
+-				     subscribe_done_cb, NULL);
++		/* IS25: retained "online" (the Last Will says "offline"). */
++		(void)mqtt_publish(client, COMMS_BRIDGE_TOPIC_STATUS,
++				   COMMS_BRIDGE_STATUS_ONLINE,
++				   sizeof(COMMS_BRIDGE_STATUS_ONLINE) - 1,
++				   1 /* qos */, 1 /* retain */,
++				   publish_done_cb, NULL);
++		comms_bridge_connected(1);
++
++		err = mqtt_subscribe(client, COMMS_BRIDGE_TOPIC_COMMAND,
++				     1 /* qos */, subscribe_done_cb, NULL);
+ 		if(err != ERR_OK) {
+ 			tm_printf((UB*)"mqtt: mqtt_subscribe() failed, err=%d\n",
+ 				  (int)err);
+@@ -171,15 +210,18 @@ static void connection_cb(mqtt_client_t *c, void *arg, mqtt_connection_status_t
+ 		 * self-perpetuating heartbeat, and every one of them holds a
+ 		 * MEMP_SYS_TIMEOUT slot until the pool is exhausted. */
+ 		sys_untimeout(heartbeat_timeout, NULL);
+-		sys_timeout(MQTT_UTK_HEARTBEAT_MS, heartbeat_timeout, NULL);
++		sys_timeout(COMMS_BRIDGE_POLL_MS, heartbeat_timeout, NULL);
+ 	} else {
+ 		/* mqtt_client_connect() reconnects on its own for a dropped
+ 		 * keepalive; a rejected/never-established connection does not
+ 		 * retry itself, so do that here -- on a delay, so a broker
+ 		 * that keeps rejecting (e.g. bad client ID) can't turn this
+ 		 * into a tight reconnect loop. */
+-		tm_printf((UB*)"mqtt: connection status %d, retrying in %ds\n",
+-			  (int)status, MQTT_UTK_RETRY_MS / 1000);
++		comms_bridge_connected(0);	/* IS25 */
++		tm_printf((UB*)"mqtt: connection status %d (broker %s), retrying "
++			  "in %ds\n", (int)status,
++			  ip4addr_ntoa(ip_2_ip4(&broker_addr)),
++			  MQTT_UTK_RETRY_MS / 1000);
+ 		sys_timeout(MQTT_UTK_RETRY_MS, retry_timeout, NULL);
+ 	}
+ }
+@@ -207,8 +249,33 @@ void mqtt_utk_start(void)
+ 	}
+ 	IP_SET_TYPE(&broker_addr, IPADDR_TYPE_V4);
+ 
++	/* IS25 (17 Nov): MQTT_BROKER_IP "0.0.0.N" means the car's own first
++	 * three numbers with N last.  A phone hotspot picks a new subnet each
++	 * time it is switched on (10.217.61.x, then 10.222.14.x) while the
++	 * laptop keeps the same last number, so the broker is found without
++	 * a rebuild.
++	 * Called on every poll while the link is up: until DHCP has given
++	 * the car an address, simply try again next time. */
++	if((ip4_addr_get_u32(ip_2_ip4(&broker_addr)) & PP_HTONL(0xFFFFFF00UL)) == 0) {
++		u32_t	own;
++
++		if((netif_default == NULL) ||
++		   ip4_addr_isany_val(*netif_ip4_addr(netif_default))) {
++			return;
++		}
++		/* The car's first three numbers, the configured last one. */
++		own = ip4_addr_get_u32(netif_ip4_addr(netif_default));
++		ip4_addr_set_u32(ip_2_ip4(&broker_addr),
++				 (own & PP_HTONL(0xFFFFFF00UL)) |
++				 ip4_addr_get_u32(ip_2_ip4(&broker_addr)));
++	}
++
+ 	client_info.client_id = MQTT_CLIENT_ID;
+ 	client_info.keep_alive = MQTT_UTK_KEEPALIVE_S;
++	client_info.will_topic = COMMS_BRIDGE_TOPIC_STATUS;	/* IS25 NFR18 */
++	client_info.will_msg = COMMS_BRIDGE_STATUS_OFFLINE;
++	client_info.will_qos = 1;
++	client_info.will_retain = 1;
+ 
+ 	connecting = 1;
+ 	err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
+diff --git a/lib/libwifi/sysdepend/pico_rp2040/cyw43_utk.c b/lib/libwifi/sysdepend/pico_rp2040/cyw43_utk.c
+index 7e2d60b..1e3ca6e 100644
+--- a/lib/libwifi/sysdepend/pico_rp2040/cyw43_utk.c
++++ b/lib/libwifi/sysdepend/pico_rp2040/cyw43_utk.c
+@@ -18,6 +18,12 @@
+ #include "wifi_secrets.h"
+ #if TM_MQTT
+ #include "mqtt_utk.h"
++#if TM_MQTT
++/* IS25 IF-07: pass the WiFi signal strength to TSK_COMMS (heartbeat).
++ * comms_bridge.h includes only <stdint.h>. */
++#include "../../../../app_program/subsystem5/comms_bridge.h"
++#define IS25_RSSI_PERIOD_US     1000000u
++#endif
+ #endif
+ #endif
+ 
+@@ -277,6 +283,9 @@ void cyw43_utk_task(int32_t stacd, void *exinf)
+     int32_t  prev_link_status = radio_status.link_status;
+     uint64_t rejoin_at = 0;
+ #endif
++#if TM_MQTT
++    uint64_t rssi_at = 0;       /* IS25 IF-07 */
++#endif
+ 
+     for(;;) {
+ #if TM_NET_LWIP
+@@ -287,6 +296,18 @@ void cyw43_utk_task(int32_t stacd, void *exinf)
+         if(radio_status.link_status == CYW43_LINK_UP) {
+             radio_status.ip_addr = ip4_addr_get_u32(netif_ip4_addr(&cyw43_state.netif[CYW43_ITF_STA]));
+         }
++#if TM_MQTT
++        /* IS25 IF-07: signal strength once a second, inside the driver
++         * lock this task already holds. */
++        if(radio_status.link_status == CYW43_LINK_UP && time_us_64() >= rssi_at) {
++            int32_t rssi = 0;
++
++            rssi_at = time_us_64() + IS25_RSSI_PERIOD_US;
++            if(cyw43_wifi_get_rssi(&cyw43_state, &rssi) == 0) {
++                comms_bridge_rssi(rssi);
++            }
++        }
++#endif
+         if(radio_status.link_status != prev_link_status) {
+             prev_link_status = radio_status.link_status;
+             if(radio_status.link_status == CYW43_LINK_UP) {

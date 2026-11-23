@@ -15,8 +15,13 @@
 #define WIFI_SSID     "your-network-name"
 #define WIFI_PASSWORD "your-network-password"
 
-/* Only used when built with MQTT=1 (also requires NET=lwip). */
-#define MQTT_BROKER_IP   "192.168.1.10"
+/* Only used when built with MQTT=1 (also requires NET=lwip).
+ * MQTT_BROKER_IP: the laptop running the broker.  "0.0.0.N" (IS25, 17 Nov)
+ * = the car's own first three numbers with N last: a phone hotspot changes
+ * its address range each time it is switched on, but the laptop keeps the
+ * same last number, so "0.0.0.184" keeps working without a rebuild.  A full
+ * address ("192.168.1.10") is used as it is. */
+#define MQTT_BROKER_IP   "0.0.0.184"
 #define MQTT_BROKER_PORT 1883
 #define MQTT_CLIENT_ID   "mtk3smp-pico"
 #define MQTT_TOPIC       "mtk3smp-pico/heartbeat"

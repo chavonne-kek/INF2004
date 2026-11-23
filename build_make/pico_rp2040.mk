@@ -79,6 +79,28 @@ ifneq ($(NET),lwip)
 $(error MQTT=1 requires NET=lwip)
 endif
 MQTT_SUFFIX := _mqtt
+# IS25: the robot's topics (robot/heartbeat, robot/command, ...) need the
+# IF-07 change to mqtt_utk.c.  Without it the image runs the kernel's
+# "hb N" demo and TSK_COMMS stays OFFLINE, so stop here instead.
+ifneq ($(MAKECMDGOALS),clean)
+ifeq ($(shell grep -c comms_bridge ../lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c 2>/dev/null),0)
+$(error MQTT=1 needs the IF-07 patch (instructor approval first): cd .. && git apply lib_patches/IF-07_mqtt_utk.patch)
+endif
+endif
+endif
+
+# CHECK=6 builds the barcode bench image: only the barcode sensor (GP28)
+# and a bare Pico, swipe labels by hand (subsystem1_barcode_bench()).
+# CHECK=n (n = 1..5) builds a one-subsystem check image: subsystem n's
+# self-tests only, then a live readout of its hardware for checking the
+# wiring by hand (subsystemN_check()).  Implies TEST=1; suffix _checkN.
+CHECK ?= 0
+ifneq ($(filter $(CHECK),0 1 2 3 4 5 6),$(CHECK))
+$(error Unknown CHECK '$(CHECK)'; use 1..5 (one subsystem), 6 (barcode bench) or 0)
+endif
+ifneq ($(CHECK),0)
+override TEST := 1
+CHECK_SUFFIX := _check$(CHECK)
 endif
 
 # TEST=1 builds the subsystem self-tests into the image (APP_TEST=1 in C).
@@ -116,7 +138,7 @@ endif
 # a live hazard: an SMP=1 build was once flashed in place of an SMP=0 one and
 # only the banner in the log revealed it.
 #
-EXE_FILE := mtk3pico_smp$(SMP)_$(CONSOLE)$(WIFI_SUFFIX)$(NET_SUFFIX)$(MQTT_SUFFIX)$(CRASH_SUFFIX)$(TEST_SUFFIX)
+EXE_FILE := mtk3pico_smp$(SMP)_$(CONSOLE)$(WIFI_SUFFIX)$(NET_SUFFIX)$(MQTT_SUFFIX)$(CRASH_SUFFIX)$(TEST_SUFFIX)$(CHECK_SUFFIX)
 
 GCC := arm-none-eabi-gcc
 AS := arm-none-eabi-gcc
@@ -176,7 +198,7 @@ ifeq ($(SMP),1)
 CFLAGS  += -DCNF_SMP=1
 ASFLAGS += -DCNF_SMP=1
 endif
-CFLAGS  += -DAPP_TEST=$(TEST)
+CFLAGS  += -DAPP_TEST=$(TEST) -DAPP_CHECK=$(CHECK)
 CFLAGS  += -DTM_CONSOLE_UART=$(CRASH_REPORT)
 ifeq ($(CRASH_REPORT),0)
 CFLAGS  += -DBOARD_UART0_FREE=1
@@ -209,7 +231,7 @@ endif
 # before any recipe executes.
 ################################################################################
 
-PROFILE_ID := smp$(SMP)-$(CONSOLE)-wifi$(WIFI)-net$(NET)-mqtt$(MQTT)-crash$(CRASH_REPORT)-test$(TEST)
+PROFILE_ID := smp$(SMP)-$(CONSOLE)-wifi$(WIFI)-net$(NET)-mqtt$(MQTT)-crash$(CRASH_REPORT)-test$(TEST)-check$(CHECK)
 PROFILE_FILE := .build_profile
 
 ifneq ($(strip $(shell cat $(PROFILE_FILE) 2>/dev/null)),$(PROFILE_ID))

@@ -57,6 +57,21 @@ IMPORT void subsystem2_test(void);
 IMPORT void subsystem3_test(void);
 IMPORT void subsystem4_test(void);
 IMPORT void subsystem5_test(void);
+
+/* One-subsystem check images (make CHECK=n, n = 1..5): usermain() runs
+ * only subsystem n's tests, then subsystemn_check(), a live readout of
+ * that subsystem's hardware for checking the wiring by hand.  Never
+ * returns.  In every test image the car does not drive by itself. */
+IMPORT void subsystem1_check(void);
+IMPORT void subsystem1_barcode_bench(void);   /* CHECK=6 */
+IMPORT void subsystem2_check(void);
+IMPORT void subsystem3_check(void);
+IMPORT void subsystem4_check(void);
+IMPORT void subsystem5_check(void);
+#endif
+
+#ifndef APP_CHECK
+#define APP_CHECK	0	/* 0 = all subsystems (normal or full test). */
 #endif
 
 /* Print a readable message if a kernel call failed (negative error code) */

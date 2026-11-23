@@ -1,0 +1,22 @@
+        max error: atan2 0.086 deg, asin 0.086 deg, sqrt 1.1e-07
+[HOST] H-IM01   PASS  atan2/asin within 0.1 deg, sqrt within 1e-4
+        20 mm hump at 120 mm/s -> 19 mm
+        20 mm hump at 150 mm/s -> 19 mm
+        20 mm hump at 200 mm/s -> 19 mm
+        40 mm hump at 120 mm/s -> 39 mm
+        40 mm hump at 150 mm/s -> 39 mm
+        40 mm hump at 200 mm/s -> 39 mm
+        55 mm hump at 120 mm/s -> 54 mm
+        55 mm hump at 150 mm/s -> 54 mm
+        55 mm hump at 200 mm/s -> 54 mm
+[HOST] H-IM02   PASS  hump height within +-15% (NFR9), no false collision
+[HOST] H-IM03   PASS  run maximum kept
+[HOST] H-IM11   PASS  climb longer than 3 s is discarded (Week 6 limit)
+[HOST] H-IM04   PASS  braking on flat ground: no hump, no collision
+[HOST] H-IM05   PASS  hump while turning is not reported
+[HOST] H-IM06   PASS  impact + speed drop > 50% -> COLLISION
+[HOST] H-IM07   PASS  impact without a speed drop -> no COLLISION
+[HOST] H-IM08   PASS  single 10 ms spike is not a collision (needs 20 ms)
+[HOST] H-IM09   PASS  status word round trip; pitch saturates at +-32 deg
+[HOST] H-IM10   PASS  heading 0..359
+[HOST] SUMMARY 11 passed, 0 failed

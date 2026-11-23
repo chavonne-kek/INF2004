@@ -1,7 +1,9 @@
 # Team and subsystems
 
-The tables are pre-filled with the **example** in `app_program/` (marked
-*example*). Replace those rows with your own as you replace the example code.
+IS25 final code (26 Oct): every table below describes the real system. Each
+row was taken from the Week 6 design and the Tribunal 1 decisions; change
+a row only by team agreement and say so in the commit message.
+`IS25_README.md` says what is finished and what each owner still measures.
 
 Fill this in at the start of the project and keep it up to date. It is the
 single place that says **who owns what**, so that five people can work in
@@ -17,11 +19,11 @@ subsystem, ask its owner or open a pull request for them to review.
 
 | # | Subsystem (what it does) | Student ID | GitHub username | Code | Tests |
 |---|---|---|---|---|---|
-| 1 | *example:* LED heartbeat on GP19 | | | `app_program/subsystem1/` | `testing/subsystem1/` |
-| 2 | *example:* Producer: makes a sample every 300 ms | | | `app_program/subsystem2/` | `testing/subsystem2/` |
-| 3 | *example:* Consumer: collects samples into statistics | | | `app_program/subsystem3/` | `testing/subsystem3/` |
-| 4 | *example:* Monitor: prints reports, pauses the LED | | | `app_program/subsystem4/` | `testing/subsystem4/` |
-| 5 | | | | `app_program/subsystem5/` | `testing/subsystem5/` |
+| 1 | IR line following + Code 39 barcode decoding (Buddy 3, Hao Ming) | 2500331 | | `app_program/subsystem1/` | `testing/subsystem1/` |
+| 2 | Motors, encoders, PID, odometry (Buddy 2, Kai Xuan) | 2501473 | | `app_program/subsystem2/` | `testing/subsystem2/` |
+| 3 | IMU (LSM303D), pitch, humps, lift / overturn stop (Buddy 4, Zi Siang; his `imu.c` engine) | 2500989 | | `app_program/subsystem3/` | `testing/subsystem3/` |
+| 4 | Ultrasonic + servo scan (Buddy 5 engine `b5_*.c`), vehicle controller (Buddy 5, Soma) | 2402033 | | `app_program/subsystem4/` | `testing/subsystem4/` |
+| 5 | WiFi / MQTT telemetry and commands (Buddy 1, Chavonne) | 2502481 | | `app_program/subsystem5/` | `testing/subsystem5/` |
 
 Shared files (`app_program/app_main.c`, `app_program/app.h`, this file)
 are changed only by agreement of the team. The exception is claiming an empty
@@ -45,35 +47,39 @@ if the row is empty, fill it in and commit. If two people claim the same
 pin, they agree between themselves who moves. Only the *reserved* rows are
 fixed.
 
+As built on 26 Oct (`IS25_BUILD_LOG_2026-10-26.md`). Grove cables in this
+kit: **white = pin 1 = the port's first GPIO, yellow = pin 2 = second GPIO,
+red = 3V3, black = GND**.
+
 | Pin | Owner | Used for |
 |---|---|---|
 | GP23, GP24, GP25, GP29 | *reserved* | Pico W radio |
-| GP0 | | (taken whenever the team builds with `CRASH_REPORT=1`) |
-| GP1 | | (taken whenever the team builds with `CRASH_REPORT=1`) |
-| GP2 | | |
-| GP3 | | |
-| GP4 | | |
-| GP5 | | |
-| GP6 | | |
-| GP7 | | |
-| GP8 | | |
-| GP9 | | |
-| GP10 | | |
-| GP11 | | |
+| GP0 | S2 | Left encoder (Grove 1, white), input + pull-up, both-edge IRQ. **So `CRASH_REPORT=1` / `CONSOLE=uart` cannot be used** (build stops) |
+| GP1 | S2 | Left encoder (Grove 1, yellow), input + pull-up, both-edge IRQ: the wheel is counted on whichever of GP0/GP1 carries pulses (phase B with `ENC_USE_PHASE_B`) |
+| GP2 | S2 | Right encoder (Grove 2, white), input + pull-up, both-edge IRQ |
+| GP3 | S2 | Right encoder (Grove 2, yellow), input + pull-up, both-edge IRQ: counted on whichever of GP2/GP3 carries pulses |
+| GP4 | S4 | HC-SR04 trigger (Grove 3), `B5_PIN_SONAR_TRIG` |
+| GP5 | S4 | HC-SR04 echo (Grove 3, yellow), shared GPIO IRQ, `B5_PIN_SONAR_ECHO`. Module on 3V3, so no divider (a divider is needed if it is ever moved to 5 V) |
+| GP6 | | Grove 5 white wire, taped off (Grove 5 is the left IR sensor on GP26) |
+| GP7 | | Grove 7 white wire, taped off (Grove 7 is the right IR sensor on GP28) |
+| GP8 | S2 | Motor M1A (left), PWM slice 4A 20 kHz |
+| GP9 | S2 | Motor M1B (left), PWM slice 4B |
+| GP10 | S2 | Motor M2A (right), PWM slice 5A |
+| GP11 | S2 | Motor M2B (right), PWM slice 5B |
 | GP12 | | |
 | GP13 | | |
 | GP14 | | |
-| GP15 | | |
-| GP16 | | |
-| GP17 | | |
+| GP15 | S4 | Scan servo, PWM slice 7B 50 Hz |
+| GP16 | S3 | I2C0 SDA, IMU (Grove 4) |
+| GP17 | S3 | I2C0 SCL, IMU (Grove 4) |
 | GP18 | | |
-| GP19 | *example:* S1 | external LED (LED + 330 Ω to GND) |
-| GP20 | | |
-| GP21 | | |
-| GP22 | | |
-| GP26 | | (ADC0 capable) |
-| GP27 | | (ADC1 capable) |
-| GP28 | | (ADC2 capable) |
+| GP19 | | (S1 can use it as a debug timing probe only if `LINE_TIMING_PIN_ENABLE` is set to 1 in `line_task.c`; off by default) |
+| GP20 | S4 | Start button (on-board, active low) |
+| GP21 | S4 | Reset button (on-board, active low) |
+| GP22 | S4 | Piezo buzzer, PWM slice 3A |
+| GP26 | S1 | ADC0: left IR sensor AO |
+| GP27 | S1 | ADC1: centre IR sensor AO |
+| GP28 | S1 | ADC2: right IR sensor AO (also reads the barcode) |
 
 ## 3. Peripherals
 
@@ -106,12 +112,15 @@ the drivers have no locking to stop it.
 | Peripheral | Owner subsystem | Owning task | Pins |
 |---|---|---|---|
 | UART1 | | | |
-| I2C0 | | | |
+| I2C0 (kernel driver `iica`) | S3 | `imu_task` | GP16 / GP17 (`DEVCNF_USE_IIC` = 1, pins in `i2c_cnf_sysdep.h`) |
 | I2C1 | | | |
 | SPI0 | | | |
 | SPI1 | | | |
-| ADC | | | GP26–GP28 |
-| PWM slices (list) | | | |
+| ADC (kernel driver `adca`) | S1 | `line_task` | GP26–GP28 (`DEVCONF_ADC_PIN_INIT_0..2` = TRUE) |
+| PWM slices 4, 5 (motors) | S2 | `motion_task` | GP8-GP11 |
+| PWM slice 7 (servo), slice 3 (buzzer) | S4 | `scan_task` (servo), `ctrl_task` (buzzer) | GP15, GP22 |
+| GPIO bank-0 interrupt (encoders + echo) | S2 | handler enabled by `motion_task` on core 1; S4 attaches GP5 with `subsystem2_gpio_attach()` | GP0–GP3, GP5 |
+| Watchdog (and its 1 us tick) | S4 | `ctrl_task` (fed only if `motion_task` is alive) | - |
 | WiFi radio, TCP/IP, MQTT | *kernel* | `cyw43_utk_task` (built in) | GP23–25, GP29 |
 
 ### WiFi and MQTT are special
@@ -146,11 +155,11 @@ change it only by team agreement. Write down every task you create.
 
 | Subsystem | Priority band | Tasks (name – priority – core) |
 |---|---|---|
-| 1 | 12–13 | *example:* led_task – 12 – any |
-| 2 | 14–15 | *example:* producer_task – 14 – core 1 |
-| 3 | 16–17 | *example:* consumer_task – 16 – core 0 |
-| 4 | 18–19 | *example:* monitor_task – 18 – any |
-| 5 | 20–21 | |
+| 1 | 12–13 | line_task – 12 – core 1 (woken every 2 ms by a cyclic handler) |
+| 2 | 14–15 | motion_task – 14 – core 1 (cyclic 10 ms) |
+| 3 | 16–17 | imu_task – 16 – core 0 (cyclic 10 ms) |
+| 4 | 18–19 | ctrl_task – 18 – core 1 (event driven, 50 ms timeout); scan_task – 19 – core 0 (60 ms ping loop) |
+| 5 | 20–21 | comms_task – 20 – core 0 (200 ms tick, wakes on commands) |
 
 Core: `TP_PRC1` = core 0, `TP_PRC2` = core 1, or "any".
 
@@ -162,12 +171,17 @@ sends to it or waits on it. Agree on the data format before coding.
 
 | ID | From → To | Mechanism | Object ID name | Data / meaning | Agreed by |
 |---|---|---|---|---|---|
-| IF-01 | S2 → S3 | mailbox (owned by S3) | `mbx_samples` | `SAMPLE_MSG` in `subsystem2.h` | *example* |
-| IF-02 | S3 → S2 | semaphore + fixed memory pool (owned by S2) | `sem_slots`, `mpf_samples` | receiver returns the block, then 1 slot | *example* |
-| IF-03 | S3 → S4 | message buffer + event flag (owned by S4) | `mbf_summary`, `flg_events` | text line ≤ `S4_SUMMARY_MAX` bytes, then `FLG_BATCH` | *example* |
-| IF-04 | S4 → S3 | shared data under a mutex (owned by S3) | `app_stats`, `mtx_stats` | `APP_STATS`, read only while locked | *example* |
-| IF-05 | S4 → S1 | task control | `tid_led` | `tk_sus_tsk` / `tk_rsm_tsk` / `tk_chg_pri` | *example* |
-| IF-06 | | | | | |
+| IF-01 | S1 → S2, S5 | shared 16-bit word, one writer, one load (owned by S1) | `subsystem1_line_read()` | bits 0–6 error mm + 40 (+ = steer left), 7 valid, 8 LINE_LOST, 9 JUNCTION | Week 6, Tribunal 1 |
+| IF-02 | S2 → S1, S3, S4, S5 | shared 32-bit word, one writer, one load (owned by S2) | `subsystem2_odometry_read()` | bits 0–14 distance mm (wraps, use `subsystem2_distance_delta`), 15–21 / 22–28 wheel speeds (raw − 64) × 5 mm/s | Week 6, Tribunal 1 |
+| IF-03 | all → S4 | event flag (owned by S4) | `flg_events` via `subsystem4_event_set()` | bits 0–9: BARCODE, LINE_LOST, LINE_FOUND, JUNCTION, MOTION_DONE, HUMP, OBSTACLE, AVOID_REQ, REMOTE_CMD, FAULT | Week 6 |
+| IF-03b | S1 → S4 | message buffer, 1 byte (owned by S1) | `subsystem1_barcode_mbf()` | bits 0–5 Code 39 index, bit 6 reversed | Tribunal 1 |
+| IF-03c | S2, S3, S4, S5 → S4 | event flag, fault bitmask (owned by S4) | `flg_faults` via `subsystem4_fault_raise/clear()` | bit 0 STALL (S2), 1 ENCODER (S2), 2 IMU (S3), 3 NO_ECHO (S4), 4 WIFI (S5), 5 LIFTED (S3; was COLLISION until 17 Nov). Only the owner sets AND clears its bit; TSK_CTRL only reads | Tribunal 1 Version C |
+| IF-04 | S4 (TSK_CTRL only) → S2 | message buffer, 2 bytes (owned by S2) | `subsystem2_command()`; `subsystem2_move_forward/backward()`, `_turn_left/right()`, `_stop()` | bits 0–2 opcode (STOP, FOLLOW, MOVE_FWD, MOVE_BACK, TURN_LEFT, TURN_RIGHT, SPEED, RESET), bits 3–10 argument (cm, degrees, cm/s) | Week 6, Tribunal 1 |
+| IF-05 | TSK_SCAN ↔ TSK_CTRL (inside S4) | `mbf_avoid_req` (3 B) + EVT_OBSTACLE / EVT_AVOID_REQ; answers in `mbf_avoid_ack` (1 B) | private to S4 (`scan_task.h`) | Buddy 5 engine asks for control (TAKE), motion (S2 command, 11 bits), DONE_OK / DONE_FAIL; TSK_CTRL stays the only motion commander | Integration 26 Oct |
+| IF-06 | all → S5 | message buffer (owned by S5) | `subsystem5_post()` | event records: barcode 1 B, hump 2 B, obstacle 5 B, state 1 B; periodic data is read by S5 from IF-01/02 and the S3 status word | Week 6, Tribunal 1 |
+| IF-07 | S5 ↔ kernel WiFi service | message buffers `mbf_mqtt_tx` / `mbf_mqtt_rx`, `comms_bridge.h` | `lib_patches/IF-07_mqtt_utk.patch` (`mqtt_utk.c` + WiFi signal strength in `cyw43_utk.c`) | binary payloads per topic (`subsystem5/MQTT_PROTOCOL.md`), 1-byte commands on `robot/command`, LWT `robot/status`; decoder `tools/is25_dashboard.py` | Needs instructor approval |
+| IF-08 | S5 → S4 | message buffer, 1 byte (owned by S4) | `subsystem4_remote_cmd_mbf()` + EVT_REMOTE_CMD | validated command: bits 0–2 opcode, 3–7 speed | Week 6 |
+| IF-09 | S3 → S4, S5 | shared 32-bit word, one writer (owned by S3) | `subsystem3_status_read()` | pitch 8 bits (0.25°), heading 9, hump state 3, motion class 3 (0 stationary, 1 accelerating, 2 turning, 3 climbing, 4 descending, 5 impact, 6 decelerating, 7 cruising; 6–7 added 26 Oct), hump active 1 | Tribunal 1, integration 26 Oct |
 
 Each interface is tested by at least one integration test
 (`testing/integration/TEST_LOG.md`).
@@ -179,15 +193,19 @@ limit there. The numbers below are the example's usage.
 
 | Object | Limit | S1 | S2 | S3 | S4 | S5 |
 |---|---|---|---|---|---|---|
-| Task | 32 | 1 | 1 | 1 | 1 | |
-| Semaphore | 16 | | 1 | | | |
-| Event flag | 16 | | | | 1 | |
-| Mailbox | 12 | | | 1 | | |
-| Mutex | 12 | | | 1 | | |
-| Message buffer | 12 | | | | 1 | |
-| Fixed memory pool | 12 | | 1 | | | |
+| Task | 32 | 1 | 1 | 1 | 2 | 1 |
+| Semaphore | 16 | | | | | |
+| Event flag | 16 | | | | 2 (`flg_events`, `flg_faults`) | |
+| Mailbox | 12 | | | | | |
+| Mutex | 12 | | | | | |
+| Message buffer | 12 | 1 | 1 | | 3 | 3 |
+| Fixed memory pool | 12 | | | | | |
 | Variable memory pool | 12 | | | | | |
-| Cyclic handler | 12 | 1 | | | | |
-| Alarm handler | 12 | | | | 1 | |
+| Cyclic handler | 12 | 1 | 1 | 1 | | |
+| Alarm handler | 12 | | | | | |
+
+The two mutexes of Week 6 (`mtx_line`, `mtx_odom`) are gone: IF-01 and
+IF-02 are single-writer words stored and loaded in one access (Change
+Requirement 1).  The kernel I2C driver also creates one event flag.
 
 (The kernel's USB and WiFi service tasks also use a few of these.)

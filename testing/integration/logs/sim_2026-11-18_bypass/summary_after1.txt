@@ -1,0 +1,10 @@
+c0_w10       | plan: go round on the LEFT, shift 18 cm | back [83.216]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3385 y=9 th=-0
+c0_w10_m90   | plan: go round on the LEFT, shift 18 cm | back [83.689]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3370 y=9 th=0
+c0_w16       | plan: go round on the LEFT, shift 20 cm | back [86.087]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3358 y=9 th=0
+c0_w16_m90   | plan: go round on the LEFT, shift 20 cm | back [86.758]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3340 y=9 th=-0
+yL3_w10      | plan: go round on the RIGHT, shift 16 cm | back [82.017]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3348 y=9 th=0
+yL3_w16      | plan: go round on the RIGHT, shift 25 cm | back [91.928]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3261 y=9 th=-0
+yL6_w10      | plan: go round on the RIGHT, shift 19 cm | back [84.624]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3345 y=9 th=0
+yR3_w10      | plan: go round on the LEFT, shift 16 cm | back [81.346]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3377 y=9 th=-0
+yR3_w16      | plan: go round on the LEFT, shift 23 cm | back [90.047]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3251 y=9 th=0
+yR6_w10      | plan: go round on the LEFT, shift 17 cm | back [82.897]  | fails 0 | stops 1 | last LINE_FOLLOW    | robot x=3390 y=9 th=0

@@ -1,0 +1,32 @@
+2026-10-26  testing/subsystem3/host  (make run)  gcc 13
+./test_host
+        max error: atan2 0.086 deg, asin 0.086 deg, sqrt 1.1e-07
+[HOST] H-IM01   PASS  atan2/asin within 0.1 deg, sqrt within 1e-4
+        20 mm hump at 120 mm/s -> 19 mm
+        20 mm hump at 150 mm/s -> 19 mm
+        20 mm hump at 200 mm/s -> 19 mm
+        40 mm hump at 120 mm/s -> 39 mm
+        40 mm hump at 150 mm/s -> 39 mm
+        40 mm hump at 200 mm/s -> 39 mm
+        55 mm hump at 120 mm/s -> 54 mm
+        55 mm hump at 150 mm/s -> 54 mm
+        55 mm hump at 200 mm/s -> 54 mm
+[HOST] H-IM02   PASS  hump height within +-15% (NFR9), start/end edges, no false collision
+        two humps -> last 19 mm, max 48 mm
+[HOST] H-IM03   PASS  run maximum kept, last hump reported
+[HOST] H-IM04   PASS  braking on flat ground: no hump, no collision
+[HOST] H-IM06   PASS  impact + speed drop > 50% -> COLLISION
+[HOST] H-IM07   PASS  impact without a speed drop -> no COLLISION
+[HOST] H-IM08   PASS  single 10 ms spike is not a collision (needs 20 ms)
+[HOST] H-IM09   PASS  status word round trip; pitch saturates at +-32 deg
+[HOST] H-IM10   PASS  heading 0..359
+        10 deg nose up: glue +10.25 deg, raw -10.35 deg
+[HOST] H-IM12   PASS  nose up = + pitch through the glue (raw sign inverted)
+        1.0 m/s^2 launch: pitch -2.00..+2.00 deg
+[HOST] H-IM13   PASS  acceleration compensated: |pitch| < 3 deg, no hump
+        2.5 m/s^2 launch: pitch -6.50..+6.50 deg, start yes
+[HOST] H-IM17   PASS  hard launch: ACCELERATING, no hump report, no collision
+[HOST] H-IM14   PASS  10 deg wedge for 7 s at 10..25 cm/s: no hump report
+[HOST] H-IM15   PASS  motion classes: cruising, turning, decelerating, stopped
+[HOST] H-IM16   PASS  60 s of 50 mg noise at 15 cm/s: no hump, no collision
+[HOST] SUMMARY 15 passed, 0 failed

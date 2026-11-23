@@ -1,0 +1,9 @@
+{
+  "name": "is25-sim",
+  "private": true,
+  "description": "IS25 firmware-in-the-loop simulation on rp2040js (see README.md)",
+  "type": "module",
+  "dependencies": {
+    "rp2040js": "1.4.1"
+  }
+}

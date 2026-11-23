@@ -1,0 +1,8 @@
+d20_w10|{"pressStartAt":9,"boxX":700,"boxD":200,"quiet":true,"traceMs":1000}
+d30_w10|{"pressStartAt":9,"boxX":700,"boxD":300,"quiet":true,"traceMs":1000}
+d20_w20|{"pressStartAt":9,"boxX":700,"boxW":200,"boxD":200,"quiet":true,"traceMs":1000}
+yL6_w16|{"pressStartAt":9,"boxX":700,"boxW":160,"boxD":60,"boxY":60,"quiet":true,"traceMs":1000}
+yR6_w16|{"pressStartAt":9,"boxX":700,"boxW":160,"boxD":60,"boxY":-60,"quiet":true,"traceMs":1000}
+c0_w16_m85|{"pressStartAt":9,"boxX":700,"boxW":160,"boxD":60,"motorScaleL":0.85,"quiet":true,"traceMs":1000}
+yR3_w10_m85|{"pressStartAt":9,"boxX":700,"boxY":-30,"motorScaleL":0.85,"quiet":true,"traceMs":1000}
+far_w10|{"pressStartAt":9,"boxX":1500,"quiet":true,"traceMs":1000}
